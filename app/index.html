@@ -297,16 +297,14 @@ tr.hi td{color:var(--tx);}
   <div id="ccol">
     <div id="pn">
       <div class="plabel" id="net-label">GLOBAL NETWORK</div>
-      <div class="net-instr">hover: inspect · click: focus · click away: reset<br>SEVER: click edge · ADD: click source then target<br>right-drag: 3D rotate · shift+dblclick: reset view</div>
+      <div class="net-instr">hover: inspect · click: focus · click away: reset<br>SEVER: click edge · ADD: click source then target<br>right-drag: 3D rotate</div>
+      <div id="net-reset-3d" onclick="resetNet3D()" title="Reset 3D perspective and zoom" style="position:absolute;top:8px;right:95px;font-size:7px;letter-spacing:.10em;color:var(--mu);cursor:pointer;padding:3px 7px;border:1px solid var(--b2);border-radius:2px;z-index:4;transition:all .12s;user-select:none" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--mu)'">⊹ RESET VIEW</div>
       <svg id="nsvg"></svg>
       <div class="legend">
-        <div class="li"><div class="ll" style="background:var(--ph)"></div>r≥0.85 +</div>
-        <div class="li"><div class="ll" style="background:var(--pm)"></div>r 0.65–0.85 +</div>
-        <div class="li"><div class="ll" style="background:var(--nh)"></div>r≥0.85 −</div>
-        <div class="li"><div class="ll" style="background:var(--nm)"></div>r 0.65–0.85 −</div>
-        <div class="li"><div class="ll" style="background:var(--ph);opacity:.35"></div>projected</div>
+        <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>|r| strong</div>
+        <div class="li"><div class="ll" style="background:#c8f060;opacity:.50;height:2px"></div>|r| mid</div>
+        <div class="li"><div class="ll" style="background:#c8f060;opacity:.18;height:1px"></div>|r| threshold</div>
         <div class="li"><div class="ll" style="background:var(--sv);opacity:.45"></div>severed</div>
-        <div class="li"><div class="ll" style="background:var(--hy)"></div>hypothetical</div>
         <div style="border-top:1px solid var(--b1);margin-top:4px;padding-top:4px" id="country-legend"></div>
       </div>
       <div id="rdout"></div>
@@ -371,9 +369,10 @@ function nid(n){return typeof n==='object'?n.id:n;}
 function stripPfx(id){const i=id.indexOf('::');return i>=0?id.slice(i+2):id;}
 // Get country from prefixed id
 function pfxCountry(id){const i=id.indexOf('::');return i>=0?id.slice(0,i):null;}
-function eCol(r){const a=Math.abs(r);return a>=.85?(r>0?'#c8f060':'#f06080'):a>=.65?(r>0?'#8ab840':'#b04060'):a>=.45?(r>0?'#4a6820':'#602030'):(r>0?'#2a3a10':'#3a1020');}
-function eOp(s,p){return p?.12+(s)*.35:.18+(s)*.65;}
-function eW(s,p){return p?.4+(s)*1.2:.4+(s)*3.5;}
+// Single-color edges: lime green, varying opacity and width by |r|
+function eCol(r){return '#c8f060';}
+function eOp(s,p){return p?.06+(s)*.42:.08+(s)*.78;}
+function eW(s,p){return p?.3+(s)*.8:.3+(s)*3.8;}
 
 // ── DATA LOADING ──
 async function loadData(prog){
@@ -960,12 +959,12 @@ function renderNet(){
   // Edges
   const eLines=gE.selectAll('line').data(aeR).join('line')
     .attr('stroke',d=>d.hypothetical?'var(--hy)':eCol(d.correlation))
-    .attr('stroke-width',d=>d.hypothetical?1.5:eW(d.strength,d.projected))
-    .attr('stroke-dasharray',d=>(d.projected||d.hypothetical)?'5,3':null)
+    .attr('stroke-width',d=>d.hypothetical?1.5:eW(d.strength,false))
+    .attr('stroke-dasharray',d=>d.hypothetical?'5,3':null)
     .attr('opacity',d=>{
       if(d.hypothetical)return.8;
-      if(selId){const s=nid(d.source),t=nid(d.target);return(s===selId||t===selId)?eOp(d.strength,d.projected):.03;}
-      return eOp(d.strength,d.projected);
+      if(selId){const s=nid(d.source),t=nid(d.target);return(s===selId||t===selId)?eOp(d.strength,false):.03;}
+      return eOp(d.strength,false);
     })
     .attr('cursor',S.mode==='sever'?'pointer':'default')
     .on('mouseover',(ev,d)=>{const s=stripPfx(nid(d.source)),t=stripPfx(nid(d.target));const cc=d.correlation>0?'tr':'tn';const pT=d.projected?'<br><span style="color:var(--af)">projected</span>':'';const cT=d.country_a?`<br><span style="color:${S.meta.country_meta[d.country_a]?.color}">${d.country_a}</span> x <span style="color:${S.meta.country_meta[d.country_b]?.color}">${d.country_b}</span>`:'';showTip(`<b>${s.substring(0,32)}</b><br>x <b>${t.substring(0,32)}</b><br>r = <span class="${cc}">${d.correlation}</span>${pT}${cT}`,ev);})
@@ -1043,34 +1042,26 @@ function renderNet(){
       eLbls.attr('x',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.x+d.target.x)/2:0).attr('y',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.y+d.target.y)/2:0);
       nSel.attr('transform',d=>`translate(${d.x??W/2},${d.y??H/2})`);
       sevLines.attr('x1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.x??0;}).attr('y1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.y??0;}).attr('x2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.x??0;}).attr('y2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.y??0;});
-      // Convex hull cluster polygons
+      // Ellipse cluster backdrops (dynamic circular layout)
       if(needsCluster){
         const byC={};S.gNodes.forEach(n=>{if(!n.country||!isFinite(n.x)||!isFinite(n.y))return;(byC[n.country]=byC[n.country]||[]).push(n);});
         const cdata=Object.entries(byC);
-        gBd.selectAll('path').data(cdata,d=>d[0]).join('path')
-          .attr('d',([,ns])=>{
-            const cx=ns.reduce((a,n)=>a+n.x,0)/ns.length,cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;
-            if(ns.length<3){const r=Math.max(55,Math.max(...ns.map(n=>Math.hypot(n.x-cx,n.y-cy)))+48);return `M${cx-r},${cy}A${r},${r},0,1,0,${cx+r},${cy}A${r},${r},0,1,0,${cx-r},${cy}`;}
-            const hull=d3.polygonHull(ns.map(n=>[n.x,n.y]));if(!hull||hull.length<3)return'';
-            const pad=55,padded=hull.map(([x,y])=>{const dx=x-cx,dy=y-cy,l=Math.sqrt(dx*dx+dy*dy)||1;return[x+dx/l*pad,y+dy/l*pad];});
-            return'M'+padded.map(p=>p.join(',')).join('L')+'Z';
-          })
+        gBd.selectAll('ellipse').data(cdata,d=>d[0]).join('ellipse')
+          .attr('cx',([,ns])=>ns.reduce((a,n)=>a+n.x,0)/ns.length)
+          .attr('cy',([,ns])=>ns.reduce((a,n)=>a+n.y,0)/ns.length)
+          .attr('rx',([,ns])=>{const cx=ns.reduce((a,n)=>a+n.x,0)/ns.length;return Math.max(55,Math.max(...ns.map(n=>Math.abs(n.x-cx)))+52);})
+          .attr('ry',([,ns])=>{const cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;return Math.max(40,Math.max(...ns.map(n=>Math.abs(n.y-cy)))+48);})
           .attr('fill',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888')
-          .attr('fill-opacity',.025)
+          .attr('fill-opacity',.022)
           .attr('stroke',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888')
-          .attr('stroke-opacity',.16)
+          .attr('stroke-opacity',.13)
           .attr('stroke-width',1.2)
-          .attr('stroke-dasharray','8,5');
-        // Country label above hull
+          .attr('stroke-dasharray','7,5');
         gBd.selectAll('text').data(cdata,d=>d[0]).join('text')
           .attr('x',([,ns])=>ns.reduce((a,n)=>a+n.x,0)/ns.length)
-          .attr('y',([,ns])=>{
-            const cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;
-            const maxDy=Math.max(40,Math.max(...ns.map(n=>Math.abs(n.y-cy)))+60);
-            return cy-maxDy-8;
-          })
+          .attr('y',([,ns])=>{const cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;return cy-(Math.max(40,Math.max(...ns.map(n=>Math.abs(n.y-cy)))+48))-8;})
           .attr('text-anchor','middle').attr('font-family','Instrument Serif,serif').attr('font-size',11)
-          .attr('fill',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888').attr('opacity',.38)
+          .attr('fill',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888').attr('opacity',.32)
           .attr('pointer-events','none')
           .text(([iso3])=>S.meta?.country_meta[iso3]?.name||CNAME[iso3]||iso3);
       }
@@ -1117,7 +1108,7 @@ function initGlobe(){
     .width(W).height(H)
     .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
     .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+    .backgroundColor('rgba(7,8,10,1)')
     .showAtmosphere(true)
     .atmosphereColor('#3a6ca8')
     .atmosphereAltitude(0.18)
@@ -1141,10 +1132,10 @@ function initGlobe(){
     .arcEndLat('endLat').arcEndLng('endLng')
     .arcColor('colors')
     .arcStroke(d=>0.3+d.strength*0.7)
-    .arcDashLength(0.35)
-    .arcDashGap(1.8)
-    .arcDashInitialGap(()=>Math.random()*3)
-    .arcDashAnimateTime(d=>1200+d.strength*1400)
+    .arcDashLength(1)
+    .arcDashGap(0)
+    .arcDashInitialGap(0)
+    .arcDashAnimateTime(0)
     .arcAltitudeAutoScale(0.35)
     .arcLabel(d=>`<div style="font:9px monospace;background:rgba(0,0,0,.75);color:#fff;padding:3px 7px;border-radius:2px">${d.label||''}</div>`)
     .pointOfView({lat:20,lng:10,altitude:2.4});
@@ -1225,6 +1216,13 @@ function globePulse(){
   }
   gArcData=arcs;
   if(gWorld)gWorld.arcsData(arcs);
+}
+
+function resetNet3D(){
+  const svgEl=$('nsvg');
+  if(svgEl._rd3){svgEl._rd3.rx=0;svgEl._rd3.ry=0;}
+  svgEl.style.transform='';
+  autoZoom();
 }
 
 // ── DRAG HANDLES ──

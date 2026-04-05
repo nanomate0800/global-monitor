@@ -111,36 +111,91 @@ def first_diff(vals):
     """Year-over-year first differences — removes trend-based spurious correlations."""
     return [vals[i]-vals[i-1] for i in range(1,len(vals))]
 
+def _quick_corr(xs, ys):
+    """Pearson r between two equal-length arrays."""
+    n = len(xs)
+    if n < 3: return 0.0
+    mx, my = sum(xs)/n, sum(ys)/n
+    num = sum((x-mx)*(y-my) for x,y in zip(xs,ys))
+    den = (sum((x-mx)**2 for x in xs)*sum((y-my)**2 for y in ys))**0.5
+    return max(-1.0, min(1.0, num/den)) if den > 0 else 0.0
+
 def compute_corr(data_dict, y1, y2, min_obs=5):
     """
-    data_dict: {indicator_name: [(year,value),...]}
-    Uses first-differenced values (ΔY) to avoid spurious trend correlations
-    e.g. Kenya population vs China internet use both trend up → spuriously correlated on levels.
+    Robust correlation pipeline:
+      1. First-differencing  — removes shared linear trend
+      2. Common-factor residual — removes shared global cycle (median across all series)
+      3. Fisher z significance test — removes noise correlations (p < 0.15)
+      4. Consistency check — same sign in both halves of the period
     """
-    keys = list(data_dict.keys())
+    # ── Step 1: first-difference all series ──
+    diff_map = {}
+    for key, pairs in data_dict.items():
+        da = {yr: v for yr, v in pairs if y1 <= yr <= y2}
+        yrs = sorted(da.keys())
+        if len(yrs) < max(4, min_obs): continue
+        diffs = first_diff([da[y] for y in yrs])
+        diff_map[key] = dict(zip(yrs[1:], diffs))
+
+    if len(diff_map) < 2:
+        return []
+
+    # ── Step 2: compute common factor (median across all series per year) ──
+    all_years_set = set()
+    for d in diff_map.values(): all_years_set |= set(d.keys())
+    factor = {}
+    for yr in sorted(all_years_set):
+        vals = [diff_map[k][yr] for k in diff_map if yr in diff_map[k]]
+        if len(vals) >= 3:
+            factor[yr] = float(np.median(vals))
+
+    # ── Step 3: subtract common factor to get residuals ──
+    residuals = {}
+    for key, diffs in diff_map.items():
+        cy = sorted(set(diffs.keys()) & set(factor.keys()))
+        if len(cy) < max(3, min_obs - 2): continue
+        xf = np.array([factor[y] for y in cy])
+        yv = np.array([diffs[y] for y in cy])
+        std_xf = float(np.std(xf))
+        if std_xf > 1e-9:
+            beta = float(np.cov(xf, yv)[0, 1] / np.var(xf))
+            resid = yv - beta * xf
+        else:
+            resid = yv
+        residuals[key] = dict(zip(cy, resid.tolist()))
+
+    keys = list(residuals.keys())
     edges = []
-    eid   = 0
+    eid = 0
     for i in range(len(keys)):
-        for j in range(i+1, len(keys)):
-            a,b = keys[i], keys[j]
-            da = {yr:v for yr,v in data_dict[a] if y1<=yr<=y2}
-            db = {yr:v for yr,v in data_dict[b] if y1<=yr<=y2}
-            common = sorted(set(da)&set(db))
-            if len(common) < min_obs: continue
-            xs_raw = [da[y] for y in common]
-            ys_raw = [db[y] for y in common]
-            # Apply first differencing (removes shared time trend)
-            xs = first_diff(xs_raw)
-            ys = first_diff(ys_raw)
-            if len(xs) < max(4, min_obs-1): continue
-            mx = sum(xs)/len(xs); my = sum(ys)/len(ys)
-            num = sum((x-mx)*(y-my) for x,y in zip(xs,ys))
-            den = (sum((x-mx)**2 for x in xs)*sum((y-my)**2 for y in ys))**0.5
-            if den == 0: continue
-            r = max(-1,min(1, num/den))
-            edges.append({'id':eid,'source':a,'target':b,
-                          'correlation':round(r,3),'strength':round(abs(r),3),
-                          'sign':'pos' if r>0 else 'neg'})
+        for j in range(i + 1, len(keys)):
+            a, b = keys[i], keys[j]
+            common = sorted(set(residuals[a]) & set(residuals[b]))
+            n = len(common)
+            if n < max(4, min_obs - 1): continue
+            xs = [residuals[a][y] for y in common]
+            ys = [residuals[b][y] for y in common]
+            r = _quick_corr(xs, ys)
+
+            # ── Step 4: Fisher z significance (no scipy) ──
+            ar = abs(r)
+            if ar >= 1.0 - 1e-9: continue
+            z = 0.5 * np.log((1 + ar) / (1 - ar))
+            z_thr = 1.44 / max(1, (n - 3)) ** 0.5  # ≈ 15% two-tailed
+            if z < z_thr: continue
+
+            # ── Step 5: consistency — same sign in both halves ──
+            mid = n // 2
+            if mid >= 3 and n - mid >= 3:
+                r1 = _quick_corr(xs[:mid], ys[:mid])
+                r2 = _quick_corr(xs[mid:], ys[mid:])
+                # Reject only if halves clearly contradict each other
+                if r1 * r2 < 0 and min(abs(r1), abs(r2)) > 0.25:
+                    continue
+
+            edges.append({'id': eid, 'source': a, 'target': b,
+                          'correlation': round(r, 3), 'strength': round(ar, 3),
+                          'sign': 'pos' if r > 0 else 'neg'})
             eid += 1
     return edges
 
@@ -327,16 +382,16 @@ meta = {
     'risk_signals': risk_signals,
     'node_meta':    node_meta,
     'country_meta': {
-        'USA':{'name':'United States','lat':37.09, 'lon':-95.71, 'color':'#c8f060'},
-        'KEN':{'name':'Kenya',        'lat':-0.02, 'lon': 37.91, 'color':'#60c8f0'},
-        'BRA':{'name':'Brazil',       'lat':-14.24,'lon':-51.93, 'color':'#f060c8'},
-        'DEU':{'name':'Germany',      'lat': 51.17,'lon': 10.45, 'color':'#f0a060'},
-        'CHN':{'name':'China',        'lat': 35.86,'lon':104.19, 'color':'#a060f0'},
-        'RUS':{'name':'Russia',       'lat': 61.52,'lon': 105.32,'color':'#f04040'},
-        'SGP':{'name':'Singapore',    'lat':  1.35,'lon': 103.82,'color':'#40f0d0'},
-        'IND':{'name':'India',        'lat': 20.59,'lon':  78.96,'color':'#f0c040'},
-        'JPN':{'name':'Japan',        'lat': 36.20,'lon': 138.25,'color':'#ff8080'},
-        'IDN':{'name':'Indonesia',    'lat':-0.79, 'lon': 113.92,'color':'#80ff80'},
+        'USA':{'name':'United States','lat':37.09, 'lon':-95.71, 'color':'#5b8dd9'},
+        'KEN':{'name':'Kenya',        'lat':-0.02, 'lon': 37.91, 'color':'#3eb8a8'},
+        'BRA':{'name':'Brazil',       'lat':-14.24,'lon':-51.93, 'color':'#4daa6a'},
+        'DEU':{'name':'Germany',      'lat': 51.17,'lon': 10.45, 'color':'#d4a843'},
+        'CHN':{'name':'China',        'lat': 35.86,'lon':104.19, 'color':'#d45c52'},
+        'RUS':{'name':'Russia',       'lat': 61.52,'lon': 105.32,'color':'#8f74c8'},
+        'SGP':{'name':'Singapore',    'lat':  1.35,'lon': 103.82,'color':'#3dbec8'},
+        'IND':{'name':'India',        'lat': 20.59,'lon':  78.96,'color':'#c8943a'},
+        'JPN':{'name':'Japan',        'lat': 36.20,'lon': 138.25,'color':'#c87090'},
+        'IDN':{'name':'Indonesia',    'lat':-0.79, 'lon': 113.92,'color':'#78b84e'},
     }
 }
 
