@@ -1,0 +1,11 @@
+# Generated data (rebuild with: python etl/extract.py && python etl/load.py && python build_data.py)
+db/
+data/
+app/static/data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
