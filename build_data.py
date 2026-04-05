@@ -219,7 +219,7 @@ for _,row in city_df[['iso3','city_name','lat','lon']].drop_duplicates().iterrow
 city_cross = []
 for ca, cb in combinations(list(cities.keys()),2):
     if cities[ca]['iso3']==cities[cb]['iso3']: continue
-    for param in ['T2M','PRECTOTCORR','RH2M']:
+    for param in ['NASA_T2M','NASA_PRECTOTCORR','NASA_RH2M']:
         sub = city_df[city_df['param']==param]
         sa  = sub[sub['city_name']==ca].set_index('year')['value']
         sb  = sub[sub['city_name']==cb].set_index('year')['value']
@@ -229,8 +229,27 @@ for ca, cb in combinations(list(cities.keys()),2):
         if np.isnan(r) or abs(r)<0.25: continue
         city_cross.append({'city_a':ca,'iso3_a':cities[ca]['iso3'],
                            'city_b':cb,'iso3_b':cities[cb]['iso3'],
-                           'param':param,'correlation':round(float(r),3),
+                           'param':param.replace('NASA_',''),'correlation':round(float(r),3),
                            'strength':abs(round(float(r),3)),'sign':'pos' if r>0 else 'neg'})
+
+# Within-country city correlations (intercity view)
+city_intra = []
+for iso3 in COUNTRIES:
+    iso_cities = sorted([c for c in cities if cities[c]['iso3']==iso3])
+    for ca, cb in combinations(iso_cities, 2):
+        for param in ['NASA_T2M','NASA_PRECTOTCORR','NASA_RH2M']:
+            sub = city_df[city_df['param']==param]
+            sa  = sub[sub['city_name']==ca].set_index('year')['value']
+            sb  = sub[sub['city_name']==cb].set_index('year')['value']
+            common = sa.index.intersection(sb.index)
+            if len(common)<5: continue
+            r = sa[common].corr(sb[common])
+            if np.isnan(r) or abs(r)<0.20: continue
+            city_intra.append({'iso3':iso3,'city_a':ca,'city_b':cb,
+                               'param':param.replace('NASA_',''),
+                               'correlation':round(float(r),3),
+                               'strength':abs(round(float(r),3)),'sign':'pos' if r>0 else 'neg'})
+print(f"  City intra: {len(city_intra)} within-country city edges")
 
 THEME_INDICATORS = {
     'Financial':     ['GDP growth rate (annual %)','Inflation, consumer prices (annual %)','Official exchange rate (LCU per USD)'],
@@ -292,6 +311,7 @@ meta = {
     'year_windows': YEAR_WINDOWS,
     'cities':       cities,
     'city_cross':   city_cross,
+    'city_intra':   city_intra,
     'risk_signals': risk_signals,
     'node_meta':    node_meta,
     'country_meta': {

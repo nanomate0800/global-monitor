@@ -240,10 +240,9 @@ def fetch_nasa():
         return generate_synthetic_nasa()
 
 def generate_synthetic_nasa():
-    """Generate realistic synthetic climate data when NASA API is unavailable."""
+    """Generate synthetic climate data with shared country-level noise for realistic within-country correlations."""
     import numpy as np
     rng = np.random.default_rng(42)
-    # Mean annual T2M (C), precip (mm/day), RH (%) for each city
     CITY_CLIMATE = {
         'New York':       {'T2M': 12.5, 'PRECTOTCORR': 3.2, 'RH2M': 65},
         'Los Angeles':    {'T2M': 18.0, 'PRECTOTCORR': 0.8, 'RH2M': 70},
@@ -258,22 +257,35 @@ def generate_synthetic_nasa():
         'Guangzhou':      {'T2M': 22.5, 'PRECTOTCORR': 5.2, 'RH2M': 78},
         'Hamburg':        {'T2M':  9.0, 'PRECTOTCORR': 2.0, 'RH2M': 79},
     }
-    rows = []
     years = list(range(YEAR_START, YEAR_END + 1))
+    # Shared country-level climate signal — cities in the same country co-move
+    country_signal = {
+        iso3: {
+            'T2M':         rng.normal(0, 0.30, len(years)),
+            'PRECTOTCORR': rng.normal(0, 0.18, len(years)),
+            'RH2M':        rng.normal(0, 2.5,  len(years)),
+        }
+        for iso3 in ['USA', 'KEN', 'BRA', 'DEU', 'CHN']
+    }
+    rows = []
     city_lookup = {c['city']: c for c in CITIES}
     for city_name, means in CITY_CLIMATE.items():
         city = city_lookup.get(city_name)
         if not city: continue
+        iso3 = city['iso3']
         for param, (ind_name, cat, unit) in PARAM_META.items():
             mean_val = means[param]
-            # Add gentle warming trend to temperature (0.02 C/yr), noise otherwise
+            shared = country_signal[iso3][param]
             for i, yr in enumerate(years):
                 if param == 'T2M':
-                    val = mean_val + 0.02 * i + rng.normal(0, 0.4)
-                else:
-                    val = mean_val + rng.normal(0, mean_val * 0.05)
+                    # Global warming trend + shared country anomaly + small city noise
+                    val = mean_val + 0.028 * i + shared[i] + rng.normal(0, 0.12)
+                elif param == 'PRECTOTCORR':
+                    val = max(0.0, mean_val + shared[i] + rng.normal(0, mean_val * 0.04))
+                else:  # RH2M
+                    val = min(100.0, max(0.0, mean_val + shared[i] + rng.normal(0, 1.2)))
                 rows.append({
-                    'source': 'NASA', 'iso3': city['iso3'], 'city': city_name,
+                    'source': 'NASA', 'iso3': iso3, 'city': city_name,
                     'lat': city['lat'], 'lon': city['lon'], 'year': yr,
                     'indicator_code': f'NASA_{param}', 'indicator_name': ind_name,
                     'category': cat, 'unit': unit, 'value': round(float(val), 3),

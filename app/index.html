@@ -30,7 +30,7 @@ header{flex-shrink:0;display:flex;align-items:stretch;height:42px;border-bottom:
 .nav-btn:hover,.nav-btn.active{color:var(--ph);}
 .nav-sep{display:flex;align-items:center;color:var(--mu);padding:0 3px;font-size:11px;}
 .nav-caret{font-size:7px;opacity:.6;}
-.nav-dropdown{position:absolute;top:42px;left:0;z-index:500;background:var(--s2);border:1px solid var(--b2);min-width:185px;display:none;box-shadow:0 12px 32px rgba(0,0,0,.65);}
+.nav-dropdown{position:absolute;top:42px;left:0;z-index:500;background:var(--s2);border:1px solid var(--b2);min-width:195px;display:none;box-shadow:0 12px 32px rgba(0,0,0,.65);}
 .nav-dropdown.open{display:block;}
 .nav-option{padding:8px 14px;font-size:9px;color:var(--mu2);cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--b1);}
 .nav-option:last-child{border-bottom:none;}
@@ -51,7 +51,7 @@ input[type=range].yslider{width:60px;height:2px;accent-color:var(--ph);cursor:po
 #fc-badge{margin-left:6px;color:var(--af);}
 
 .ws{flex:1;display:flex;min-height:0;background:var(--b1);}
-#pl{width:210px;min-width:110px;max-width:380px;background:var(--s1);overflow-y:auto;flex-shrink:0;}
+#pl{width:210px;min-width:80px;max-width:380px;background:var(--s1);overflow-y:auto;flex-shrink:0;}
 .sec{padding:10px 12px;border-bottom:1px solid var(--b1);}
 .stl{font-size:8px;letter-spacing:.13em;text-transform:uppercase;color:var(--mu);margin-bottom:7px;}
 .thr-row{display:flex;align-items:center;gap:7px;margin-bottom:8px;}
@@ -97,14 +97,14 @@ input[type=range].yslider{width:60px;height:2px;accent-color:var(--ph);cursor:po
 .tabbtn{padding:6px 14px;font-size:8px;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none;}
 .tabbtn:hover{color:var(--mu2);}
 .tabbtn.on{color:var(--ph);border-bottom-color:var(--ph);}
-.tabcontent{flex:1;overflow-y:auto;display:none;}
+.tabcontent{flex:1;overflow:auto;display:none;min-width:0;}
 .tabcontent.on{display:block;}
-table{width:100%;border-collapse:collapse;}
+table{width:100%;border-collapse:collapse;min-width:480px;}
 th{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);text-align:left;padding:5px 10px 4px;border-bottom:1px solid var(--b1);white-space:nowrap;}
 td{padding:4px 10px;border-bottom:1px solid var(--b1);font-size:9px;color:var(--mu2);}
 tr.hi td{color:var(--tx);}
 .dn{color:var(--nh)!important;}.dp{color:var(--ph)!important;}.dz{color:var(--mu)!important;}
-.risk-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;padding:8px;}
+.risk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:5px;padding:8px;}
 .rc{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:7px 8px;}
 .rc.danger{border-color:rgba(255,68,68,.35);}
 .rc-name{font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu2);margin-bottom:5px;}
@@ -143,7 +143,8 @@ tr.hi td{color:var(--tx);}
       <div class="nav-dropdown" id="nd-level">
         <div class="nav-option" onclick="setLevel('global')"><span class="odot" style="background:#888"></span>Global Network</div>
         <div class="nav-option" onclick="setLevel('cross')"><span class="odot" style="background:#4a7fb5"></span>Cross-Country</div>
-        <div class="nav-option" onclick="setLevel('city')"><span class="odot" style="background:#4a90b5"></span>City / Climate</div>
+        <div class="nav-option" onclick="setLevel('country')"><span class="odot" style="background:#c8f060"></span>Country</div>
+        <div class="nav-option" onclick="setLevel('intercity')"><span class="odot" style="background:#60c8f0"></span>Intercity</div>
       </div>
     </div>
     <span class="nav-sep" id="nav-sep1" style="display:none">›</span>
@@ -226,7 +227,7 @@ tr.hi td{color:var(--tx);}
         <div style="padding:4px 10px 0;font-size:8px;color:var(--mu)">SCOPE: <span id="bscope" style="color:var(--mu2)">baseline</span></div>
         <table><thead><tr>
           <th>Node</th><th>Category</th><th>Baseline R²</th><th>Modified R²</th>
-          <th>Δ Variance</th><th>Hop</th><th>Countries</th><th>Path</th>
+          <th>Delta</th><th>Hop</th><th>Countries</th><th>Path</th>
         </tr></thead><tbody id="btbody"></tbody></table>
       </div>
       <div class="tabcontent" id="tab-risk">
@@ -245,8 +246,10 @@ tr.hi td{color:var(--tx);}
 // ══════════════════════════════════════════════════
 // GLOBAL MONITOR
 // ══════════════════════════════════════════════════
-const CAT={Economy:'#4a7fb5',Health:'#b54a6a',Education:'#b58a4a',Energy:'#4ab56a',Environment:'#2a6a30',Demographics:'#7a4ab5',Trade:'#4ab5a0',Governance:'#b5804a',Climate:'#4a90b5',Other:'#4a4a5a'};
+const CAT={Economy:'#4a7fb5',Health:'#b54a6a',Education:'#b58a4a',Energy:'#4ab56a',Environment:'#2a6a30',Demographics:'#7a4ab5',Trade:'#4ab5a0',Governance:'#b5804a',Climate:'#4a90b5',Social:'#9a7ab5',SovereignDebt:'#b5884a',Demographic:'#7a4ab5',Other:'#4a4a5a'};
 const ARC={climate_economic:'#f0a030',economic_economic:'#4a7fb5',social_social:'#7a4ab5'};
+// Country centroid positions for clustering (normalized -1 to 1 axes)
+const CTRD={'USA':[-0.70,-0.38],'DEU':[0.32,-0.72],'CHN':[0.74,0.22],'BRA':[0.02,0.80],'KEN':[-0.62,0.56]};
 
 const S={level:'global',country:'USA',mode:'explore',thr:.45,yS:2000,yE:2023,
   severed:new Set(),hyp:[],selNode:null,addSrc:null,gNodes:[],
@@ -257,6 +260,10 @@ const tip=$('tip');
 function showTip(h,e){tip.innerHTML=h;tip.style.display='block';const x=e.clientX,y=e.clientY,W=window.innerWidth;tip.style.left=(x+16>W-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';}
 function hideTip(){tip.style.display='none';}
 function nid(n){return typeof n==='object'?n.id:n;}
+// Strip "ISO3::" prefix from an id for label/forecast lookups
+function stripPfx(id){const i=id.indexOf('::');return i>=0?id.slice(i+2):id;}
+// Get country from prefixed id
+function pfxCountry(id){const i=id.indexOf('::');return i>=0?id.slice(0,i):null;}
 function eCol(r){const a=Math.abs(r);return a>=.85?(r>0?'#c8f060':'#f06080'):a>=.65?(r>0?'#8ab840':'#b04060'):a>=.45?(r>0?'#4a6820':'#602030'):(r>0?'#2a3a10':'#3a1020');}
 function eOp(s,p){return p?.12+(s)*.35:.18+(s)*.65;}
 function eW(s,p){return p?.4+(s)*1.2:.4+(s)*3.5;}
@@ -265,15 +272,17 @@ function eW(s,p){return p?.4+(s)*1.2:.4+(s)*3.5;}
 async function loadData(prog){
   prog(10,'Metadata...');
   S.meta=await fetch('static/data/meta.json').then(r=>r.json());
-  prog(30,'Cross-country data...');
+  prog(25,'Cross-country data...');
   S.cross=await fetch('static/data/cross_country.json').then(r=>r.json());
-  prog(50,'Forecasts...');
+  prog(40,'Forecasts...');
   for(const iso3 of S.meta.countries){
     S.fc[iso3]=await fetch(`static/data/forecasts/${iso3}.json`).then(r=>r.json());
   }
-  prog(80,'Correlations...');
-  await loadCorr('GLOBAL',2000,2023);
-  await loadCorr('USA',2000,2023);
+  prog(60,'Correlations...');
+  // Preload all country + global correlations for default year range
+  for(const iso3 of [...S.meta.countries,'GLOBAL']){
+    await loadCorr(iso3,2000,2023);
+  }
   prog(100,'Ready');
 }
 async function loadCorr(iso3,y1,y2){
@@ -299,22 +308,27 @@ function buildCountryDD(){
 
 async function setLevel(lv){
   S.level=lv;S.severed.clear();S.hyp=[];S.selNode=null;S.addSrc=null;
-  $('level-label').textContent=lv==='global'?'GLOBAL':lv==='cross'?'CROSS-COUNTRY':'CITY / CLIMATE';
-  const showC=lv==='country';
+  const lvLabels={global:'GLOBAL',cross:'CROSS-COUNTRY',country:S.country,intercity:'INTERCITY'};
+  $('level-label').textContent=lvLabels[lv]||lv.toUpperCase();
+  const showC=lv==='country'||lv==='intercity';
   $('nav-sep1').style.display=showC?'flex':'none';
   $('ns-country').style.display=showC?'flex':'none';
-  $('net-label').textContent=lv==='global'?'GLOBAL NETWORK':lv==='country'?`COUNTRY — ${S.country}`:lv==='cross'?'CROSS-COUNTRY CORRELATIONS':'CITY CLIMATE';
+  const netLabels={global:'GLOBAL NETWORK',cross:'CROSS-COUNTRY CORRELATIONS',country:`COUNTRY — ${S.country}`,intercity:`INTERCITY — ${S.country}`};
+  $('net-label').textContent=netLabels[lv]||lv;
   document.querySelectorAll('.nav-dropdown').forEach(d=>d.classList.remove('open'));
-  clearNodeDet();updateMeta();buildNodeList();await renderNet();updateSevList();
-  if(lv==='city')globeCityMode();else globeCountryMode();
+  if(lv==='country'||lv==='intercity') await loadCorr(S.country,S.yS,S.yE);
+  clearNodeDet();updateMeta();buildNodeList();buildRiskGrid();await renderNet();updateSevList();
+  if(lv==='intercity')globeCityMode();else globeCountryMode();
 }
 
 async function setCountry(iso3){
   S.country=iso3;S.severed.clear();S.hyp=[];S.selNode=null;
   $('country-label').textContent=iso3;
-  $('net-label').textContent=`COUNTRY — ${iso3}`;
+  const netLabels={country:`COUNTRY — ${iso3}`,intercity:`INTERCITY — ${iso3}`};
+  $('net-label').textContent=netLabels[S.level]||$('net-label').textContent;
   await loadCorr(iso3,S.yS,S.yE);
-  clearNodeDet();updateMeta();buildNodeList();await renderNet();updateSevList();globeCountryMode();
+  clearNodeDet();updateMeta();buildNodeList();buildRiskGrid();await renderNet();updateSevList();
+  if(S.level==='intercity')globeCityMode();else globeCountryMode();
 }
 
 function setMode(m,btn){S.mode=m;S.addSrc=null;document.querySelectorAll('.hmbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderNet();}
@@ -325,7 +339,10 @@ async function onYear(){
   S.yS=parseInt($('ys-s').value);S.yE=parseInt($('ys-e').value);
   $('yv-s').textContent=S.yS;$('yv-e').textContent=S.yE;
   const isFC=S.yE>2023;$('fc-badge').textContent=isFC?'◈ FORECAST':'';
-  await loadCorr(S.level==='country'?S.country:'GLOBAL',S.yS,S.yE);
+  // Reload correlations for all countries + GLOBAL for the new year window
+  for(const iso3 of [...S.meta.countries,'GLOBAL']){
+    await loadCorr(iso3,S.yS,S.yE);
+  }
   updateMeta();await renderNet();
 }
 function updateMeta(){
@@ -337,17 +354,51 @@ function updateMeta(){
 function switchTab(n,btn){document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('on'));document.querySelectorAll('.tabcontent').forEach(c=>c.classList.remove('on'));btn.classList.add('on');$('tab-'+n).classList.add('on');}
 
 // ── GRAPH DATA ──
+// Build a category lookup from node_meta for use in cross/global views
+function buildCatLookup(){
+  const m={};
+  if(!S.meta)return m;
+  S.meta.countries.forEach(iso3=>(S.meta.node_meta[iso3]||[]).forEach(n=>{m[n.id]=n.category;}));
+  return m;
+}
+
 function getNodes(){
   if(!S.meta)return[];
-  if(S.level==='global'||S.level==='city') return S.meta.node_meta[S.country]||S.meta.node_meta['USA']||[];
+  if(S.level==='global'){
+    // All 5 countries' indicator nodes combined, each tagged with country
+    const all=[];
+    S.meta.countries.forEach(iso3=>{
+      (S.meta.node_meta[iso3]||[]).forEach(n=>{
+        all.push({...n,id:`${iso3}::${n.id}`,label:n.id,country:iso3});
+      });
+    });
+    return all;
+  }
   if(S.level==='country') return S.meta.node_meta[S.country]||[];
+  if(S.level==='intercity'){
+    // Cities of the selected country as nodes
+    const nodes=Object.entries(S.meta.cities)
+      .filter(([,c])=>c.iso3===S.country)
+      .map(([name])=>({id:`city::${name}`,label:name,country:S.country,category:'Climate',degree:0,centrality:0.5}));
+    // Compute degree from city_intra
+    const intra=(S.meta.city_intra||[]).filter(e=>e.iso3===S.country&&e.strength>=S.thr);
+    intra.forEach(e=>{
+      const na=nodes.find(n=>n.id===`city::${e.city_a}`);
+      const nb=nodes.find(n=>n.id===`city::${e.city_b}`);
+      if(na)na.degree++;if(nb)nb.degree++;
+    });
+    const mx=Math.max(...nodes.map(n=>n.degree),1);
+    nodes.forEach(n=>n.centrality=n.degree/mx);
+    return nodes;
+  }
   if(S.level==='cross'){
+    const catL=buildCatLookup();
     const edges=S.cross.filter(e=>e.strength>=S.thr).slice(0,80);
     const nm={};
     edges.forEach(e=>{
       const ka=e.country_a+'::'+e.indicator_a,kb=e.country_b+'::'+e.indicator_b;
-      if(!nm[ka])nm[ka]={id:ka,label:e.indicator_a,country:e.country_a,category:'Economy',degree:0,centrality:0};
-      if(!nm[kb])nm[kb]={id:kb,label:e.indicator_b,country:e.country_b,category:'Economy',degree:0,centrality:0};
+      if(!nm[ka])nm[ka]={id:ka,label:e.indicator_a,country:e.country_a,category:catL[e.indicator_a]||'Economy',degree:0,centrality:0};
+      if(!nm[kb])nm[kb]={id:kb,label:e.indicator_b,country:e.country_b,category:catL[e.indicator_b]||'Economy',degree:0,centrality:0};
       nm[ka].degree++;nm[kb].degree++;
     });
     const mx=Math.max(...Object.values(nm).map(n=>n.degree),1);
@@ -356,58 +407,81 @@ function getNodes(){
   }
   return[];
 }
+
 function getCurEdges(){
   if(!S.meta)return[];
-  const key=S.level==='country'?`${S.country}_${S.yS}_${S.yE}`:`GLOBAL_${S.yS}_${S.yE}`;
-  if(S.level==='cross') return S.cross.filter(e=>e.strength>=S.thr).slice(0,80).map((e,i)=>({id:i,source:e.country_a+'::'+e.indicator_a,target:e.country_b+'::'+e.indicator_b,correlation:e.correlation,strength:e.strength,sign:e.sign,country_a:e.country_a,country_b:e.country_b,projected:false}));
-  return(S.corr[key]||[]).filter(e=>e.strength>=S.thr);
+  if(S.level==='global'){
+    const edges=[];
+    // Within-country edges for each country (prefixed ids)
+    S.meta.countries.forEach(iso3=>{
+      const key=`${iso3}_${S.yS}_${S.yE}`;
+      (S.corr[key]||[]).filter(e=>e.strength>=S.thr).forEach(e=>{
+        edges.push({...e,id:`${iso3}_${e.id}`,source:`${iso3}::${e.source}`,target:`${iso3}::${e.target}`,country:iso3,within:true});
+      });
+    });
+    // Cross-country edges (source/target use prefixed ids)
+    S.cross.filter(e=>e.strength>=S.thr).forEach((e,i)=>{
+      edges.push({...e,id:`x_${i}`,source:`${e.country_a}::${e.indicator_a}`,target:`${e.country_b}::${e.indicator_b}`,cross:true});
+    });
+    return edges.slice(0,500);
+  }
+  if(S.level==='country'){
+    const key=`${S.country}_${S.yS}_${S.yE}`;
+    return(S.corr[key]||[]).filter(e=>e.strength>=S.thr);
+  }
+  if(S.level==='intercity'){
+    return(S.meta.city_intra||[])
+      .filter(e=>e.iso3===S.country&&e.strength>=S.thr)
+      .map((e,i)=>({id:i,source:`city::${e.city_a}`,target:`city::${e.city_b}`,
+        correlation:e.correlation,strength:e.strength,sign:e.sign,param:e.param,projected:false}));
+  }
+  if(S.level==='cross'){
+    return S.cross.filter(e=>e.strength>=S.thr).slice(0,80)
+      .map((e,i)=>({id:i,source:e.country_a+'::'+e.indicator_a,target:e.country_b+'::'+e.indicator_b,
+        correlation:e.correlation,strength:e.strength,sign:e.sign,
+        country_a:e.country_a,country_b:e.country_b,projected:false}));
+  }
+  return[];
 }
 function getAE(){return[...getCurEdges().filter(e=>!S.severed.has(e.id)),...S.hyp];}
 
 // ── NODE LIST ──
 function buildNodeList(){
   if(!S.meta)return;
-  const cont=$('nlist');cont.innerHTML='';
-  const nodes=[...getNodes()].sort((a,b)=>b.centrality-a.centrality);
-  nodes.forEach(n=>{
-    const d=document.createElement('div');d.className='nitem';d.id='ni_'+n.id.replace(/\W/g,'_');
-    const lbl=n.label||n.id;
-    const cTag=n.country?`<span style="color:${S.meta.country_meta[n.country]?.color||'#888'};font-size:7px">${n.country}</span>`:'';
-    d.innerHTML=`<div class="ndot" style="background:${CAT[n.category]||'#555'}"></div><div class="nname" title="${lbl}">${lbl.length>24?lbl.substring(0,22)+'…':lbl} ${cTag}</div><div class="ndeg">${n.degree}</div>`;
+  const nodes=getNodes();const ae=getAE();
+  const list=$('nlist');list.innerHTML='';
+  [...nodes].sort((a,b)=>b.centrality-a.centrality).slice(0,40).forEach(n=>{
+    const lbl=n.label||n.id;const conn=ae.some(e=>nid(e.source)===n.id||nid(e.target)===n.id);
+    const d=document.createElement('div');d.className='nitem'+(S.selNode?.id===n.id?' on':'');
+    const ctryDot=n.country?`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${S.meta.country_meta[n.country]?.color||'#888'};margin-right:3px;vertical-align:middle;opacity:.7"></span>`:'';
+    d.innerHTML=`<div class="ndot" style="background:${CAT[n.category]||'#555'};${!conn?'opacity:.3':''}"></div><span class="nname" title="${lbl}">${ctryDot}${lbl.length>22?lbl.substring(0,20)+'…':lbl}</span><span class="ndeg">${n.degree}</span>`;
     d.onclick=()=>selectNode(n);
-    cont.appendChild(d);
+    list.appendChild(d);
   });
 }
 
-// ── SELECTION ──
-function selectNode(n){
-  S.selNode=n;showNodeDetail(n);
-  document.querySelectorAll('.nitem').forEach(el=>el.classList.remove('on'));
-  const nl=$('ni_'+n.id.replace(/\W/g,'_'));
-  if(nl){nl.classList.add('on');nl.scrollIntoView({block:'nearest',behavior:'smooth'});}
-  renderNet();
-  const ae=getAE();renderImpact(`node: "${(n.label||n.id).substring(0,22)}"`,getNodes(),ae,ae);
-}
-function clearSel(){
-  S.selNode=null;S.addSrc=null;clearNodeDet();
-  document.querySelectorAll('.nitem').forEach(el=>el.classList.remove('on'));
-  renderNet();const ae=getAE();renderImpact('baseline',getNodes(),ae,ae);
-}
+function selectNode(n){S.selNode=n;renderNet();showNodeDetail(n);}
+function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();renderNet();}
 function clearNodeDet(){$('node-detail').style.display='none';$('nls').style.display='block';}
 function showNodeDetail(n){
   $('nls').style.display='none';$('node-detail').style.display='block';
   const lbl=n.label||n.id;
   $('nd-name').textContent=lbl;
   $('nd-cat').textContent=n.category;$('nd-cat').style.color=CAT[n.category]||'var(--mu)';
-  const iso3=S.level==='country'?S.country:'USA';
+  // Use node's own country for sparkline/r2 if available
+  const iso3=n.country||(S.level==='country'?S.country:'USA');
   const fc=S.fc[iso3]?.[lbl];drawSparkline(fc);
-  const ae=getAE();const rv=r2(lbl,ae,iso3);
+  const ae=getAE();const rv=r2(n.id,lbl,ae,iso3);
+  const cMeta=S.meta.country_meta[iso3];
+  const cBadge=n.country?`<span style="color:${cMeta?.color||'#888'};font-size:8px">${n.country}</span> `:'';
   $('nd-grid').innerHTML=`<div class="nd-stat"><div class="nd-stat-lbl">R² (${iso3})</div><div class="nd-stat-val" style="color:var(--ph)">${rv!==null?(rv*100).toFixed(1)+'%':'—'}</div></div><div class="nd-stat"><div class="nd-stat-lbl">Connections</div><div class="nd-stat-val">${n.degree}</div></div><div class="nd-stat"><div class="nd-stat-lbl">Centrality</div><div class="nd-stat-val">${(n.centrality*100).toFixed(0)}%</div></div><div class="nd-stat"><div class="nd-stat-lbl">Category</div><div class="nd-stat-val" style="color:${CAT[n.category]||'#888'};font-size:9px">${n.category}</div></div>`;
-  const conns=ae.filter(e=>nid(e.source)===lbl||nid(e.target)===lbl).sort((a,b)=>b.strength-a.strength);
+  const conns=ae.filter(e=>nid(e.source)===n.id||nid(e.target)===n.id).sort((a,b)=>b.strength-a.strength);
   $('nd-conns').innerHTML=conns.slice(0,6).map(e=>{
-    const other=nid(e.source)===lbl?nid(e.target):nid(e.source);
+    const othId=nid(e.source)===n.id?nid(e.target):nid(e.source);
+    const othLbl=stripPfx(othId);const othCountry=pfxCountry(othId);
+    const othColor=othCountry?S.meta.country_meta[othCountry]?.color||'#888':'#888';
     const cc=e.correlation>0?'var(--ph)':'var(--nh)';
-    return `<div class="nd-conn-item"><div class="ndot" style="background:${CAT['Economy']||'#555'}"></div><span style="font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${other.length>20?other.substring(0,18)+'…':other}</span><span class="nd-conn-r" style="color:${cc}">${e.correlation.toFixed(2)}</span></div>`;
+    return `<div class="nd-conn-item"><div class="ndot" style="background:${CAT[n.category]||'#555'}"></div><span style="font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${othCountry?`<span style="color:${othColor};font-size:7px">${othCountry} </span>`:''}${othLbl.length>18?othLbl.substring(0,16)+'…':othLbl}</span><span class="nd-conn-r" style="color:${cc}">${e.correlation.toFixed(2)}</span></div>`;
   }).join('');
 }
 function drawSparkline(fc){
@@ -427,8 +501,8 @@ function drawSparkline(fc){
   if(Math.min(...fY)<0)svg.append('line').attr('x1',0).attr('x2',W).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','var(--b2)').attr('stroke-width',.8);
 }
 
-// ── R² ──
-function r2(lbl,edges,iso3){
+// ── R² (updated to handle prefixed node ids) ──
+function r2(nodeId,lbl,edges,iso3){
   const fc=S.fc[iso3]?.[lbl];if(!fc)return null;
   const allX=[...fc.years,...(fc.fc_years||[])],allY=[...fc.values,...(fc.fc_values||[])];
   const pts=allX.map((y,i)=>({y,v:allY[i]})).filter(p=>p.y>=S.yS&&p.y<=S.yE);
@@ -437,14 +511,19 @@ function r2(lbl,edges,iso3){
   const ss=Y.reduce((s,y)=>s+(y-my)**2,0);if(ss===0)return 1;
   let best=0;
   edges.forEach(e=>{
-    const s=nid(e.source),t=nid(e.target),oth=s===lbl?t:(t===lbl?s:null);if(!oth)return;
-    const fc2=S.fc[iso3]?.[oth];if(!fc2)return;
+    const s_raw=nid(e.source),t_raw=nid(e.target);
+    const s=s_raw===nodeId?s_raw:(t_raw===nodeId?null:null);
+    if(s_raw!==nodeId&&t_raw!==nodeId)return;
+    const othId=s_raw===nodeId?t_raw:s_raw;
+    const othLbl=stripPfx(othId);
+    const othCountry=pfxCountry(othId)||iso3;
+    const fc2=S.fc[othCountry]?.[othLbl];if(!fc2)return;
     const allX2=[...fc2.years,...(fc2.fc_years||[])],allY2=[...fc2.values,...(fc2.fc_values||[])];
     const p2=allX2.map((y,i)=>({y,v:allY2[i]})).filter(p=>p.y>=S.yS&&p.y<=S.yE);if(p2.length<5)return;
     const X=p2.map(p=>p.v),len=Math.min(X.length,Y.length);
     const mx=X.slice(0,len).reduce((a,b)=>a+b,0)/len,my2=Y.slice(0,len).reduce((a,b)=>a+b,0)/len;
-    const num=X.slice(0,len).reduce((s,x,i)=>s+(x-mx)*(Y[i]-my2),0);
-    const den=Math.sqrt(X.slice(0,len).reduce((s,x)=>s+(x-mx)**2,0)*Y.slice(0,len).reduce((s,y)=>s+(y-my2)**2,0));
+    const num=X.slice(0,len).reduce((s2,x,i)=>s2+(x-mx)*(Y[i]-my2),0);
+    const den=Math.sqrt(X.slice(0,len).reduce((s2,x)=>s2+(x-mx)**2,0)*Y.slice(0,len).reduce((s2,y)=>s2+(y-my2)**2,0));
     if(den>0)best=Math.max(best,(num/den)**2);
   });
   return Math.min(.99,best);
@@ -453,18 +532,19 @@ function r2(lbl,edges,iso3){
 function cascade(bE,mE,nodes){
   const ctrs=S.level==='country'?[S.country]:Object.keys(S.meta.country_meta);
   return nodes.map(node=>{
-    const lbl=node.label||node.id;let sB=0,sM=0,n=0;const aff=[];
-    ctrs.forEach(iso3=>{const b=r2(lbl,bE,iso3),m=r2(lbl,mE,iso3);if(b===null||m===null)return;sB+=b;sM+=m;n++;if(Math.abs(m-b)>.008)aff.push(iso3);});
+    const lbl=node.label||node.id;const iso3=node.country||(S.level==='country'?S.country:'USA');
+    let sB=0,sM=0,n=0;const aff=[];
+    ctrs.forEach(c=>{const b=r2(node.id,lbl,bE,c),m=r2(node.id,lbl,mE,c);if(b===null||m===null)return;sB+=b;sM+=m;n++;if(Math.abs(m-b)>.008)aff.push(c);});
     let hop=null;
     if(S.severed.size>0){
       const sN=new Set();
       S.severed.forEach(id=>{const e=getCurEdges().find(e=>e.id===id);if(e){sN.add(nid(e.source));sN.add(nid(e.target));}});
-      if(sN.has(lbl))hop=0;
+      if(sN.has(node.id))hop=0;
       else{const adj={};bE.forEach(e=>{const s=nid(e.source),t=nid(e.target);(adj[s]=adj[s]||[]).push(t);(adj[t]=adj[t]||[]).push(s);});
         let d=1,vis=new Set(sN),fr=[...sN];
-        outer:while(fr.length&&d<=5){const nx=[];for(const cur of fr)for(const nb of(adj[cur]||[])){if(!vis.has(nb)){vis.add(nb);if(nb===lbl){hop=d;break outer;}nx.push(nb);}}fr=nx;d++;}}
+        outer:while(fr.length&&d<=5){const nx=[];for(const cur of fr)for(const nb of(adj[cur]||[])){if(!vis.has(nb)){vis.add(nb);if(nb===node.id){hop=d;break outer;}nx.push(nb);}}fr=nx;d++;}}
     }
-    const conn=mE.some(e=>nid(e.source)===lbl||nid(e.target)===lbl);
+    const conn=mE.some(e=>nid(e.source)===node.id||nid(e.target)===node.id);
     return{id:lbl,cat:node.category,base:n?sB/n:0,mod:n?sM/n:0,delta:n?(sM-sB)/n:0,aff,hop,conn,n};
   }).filter(r=>r.n>0).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
 }
@@ -484,7 +564,7 @@ function renderImpact(lbl,nodes,bE,mE){
 
 function buildRiskGrid(){
   if(!S.meta)return;
-  const iso3=S.level==='country'?S.country:null;
+  const iso3=S.level==='country'||S.level==='intercity'?S.country:null;
   const ctrs=iso3?[iso3]:Object.keys(S.meta.country_meta);
   const themes=['Financial','Environmental','Social','Energy','Minerals','SovereignDebt','Geopolitical','Health','Demographic'];
   const grid=$('risk-grid');grid.innerHTML='';
@@ -505,13 +585,29 @@ function buildRiskGrid(){
 function updateSevList(){
   const n=S.severed.size+S.hyp.length;$('sev-cnt').textContent=n;$('sev-sec').style.display=n>0?'block':'none';
   const list=$('sev-list');list.innerHTML='';
-  S.severed.forEach(id=>{const e=getCurEdges().find(e=>e.id===id);if(!e)return;const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--sv)">✕</span> ${nid(e.source).substring(0,20)} ↔ ${nid(e.target).substring(0,20)}<br><span style="color:var(--mu)">r=${e.correlation}</span>`;list.appendChild(d);});
-  S.hyp.forEach(e=>{const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--hy)">+</span> ${e.source.substring(0,20)} ↔ ${e.target.substring(0,20)}<br><span style="color:var(--mu)">hypothetical</span>`;list.appendChild(d);});
+  S.severed.forEach(id=>{const e=getCurEdges().find(e=>e.id===id);if(!e)return;const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--sv)">x</span> ${stripPfx(nid(e.source)).substring(0,20)} — ${stripPfx(nid(e.target)).substring(0,20)}<br><span style="color:var(--mu)">r=${e.correlation}</span>`;list.appendChild(d);});
+  S.hyp.forEach(e=>{const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--hy)">+</span> ${e.source.toString().substring(0,20)} — ${e.target.toString().substring(0,20)}<br><span style="color:var(--mu)">hypothetical</span>`;list.appendChild(d);});
 }
 function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
 
 // ── NETWORK ──
-let sim=null;
+let sim=null,netZoom=null;
+
+function autoZoom(){
+  const svgEl=$('nsvg'),W=svgEl.clientWidth,H=svgEl.clientHeight;
+  if(!netZoom||W===0||H===0)return;
+  const active=S.gNodes.filter(n=>n.x!=null&&n.y!=null&&isFinite(n.x)&&isFinite(n.y));
+  if(active.length<2)return;
+  const xs=active.map(n=>n.x),ys=active.map(n=>n.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const pad=80,bw=x1-x0+pad*2,bh=y1-y0+pad*2;
+  if(bw<=0||bh<=0)return;
+  const sc=Math.min(W/bw,H/bh,1.1);
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  d3.select('#nsvg').transition().duration(700)
+    .call(netZoom.transform,d3.zoomIdentity.translate(W/2-cx*sc,H/2-cy*sc).scale(sc));
+}
+
 function renderNet(){
   const svgEl=$('nsvg'),W=svgEl.clientWidth,H=svgEl.clientHeight;
   if(W===0||H===0){requestAnimationFrame(renderNet);return;}
@@ -525,7 +621,8 @@ function renderNet(){
   const aeR=ae.map(e=>({...e,source:byId[nid(e.source)]??nid(e.source),target:byId[nid(e.target)]??nid(e.target)}));
   const svg=d3.select('#nsvg');svg.selectAll('*').remove();
   const zg=svg.append('g');
-  svg.call(d3.zoom().scaleExtent([.1,6]).on('zoom',ev=>zg.attr('transform',ev.transform)));
+  netZoom=d3.zoom().scaleExtent([.05,8]).on('zoom',ev=>zg.attr('transform',ev.transform));
+  svg.call(netZoom);
   svg.on('click',()=>{if(S.selNode)clearSel();});
   const gSev=zg.append('g'),gE=zg.append('g'),gN=zg.append('g');
 
@@ -544,12 +641,12 @@ function renderNet(){
       return eOp(d.strength,d.projected);
     })
     .attr('cursor',S.mode==='sever'?'pointer':'default')
-    .on('mouseover',(ev,d)=>{const s=nid(d.source),t=nid(d.target);const cc=d.correlation>0?'tr':'tn';const pT=d.projected?'<br><span style="color:var(--af)">◈ projected</span>':'';const cT=d.country_a?`<br><span style="color:${S.meta.country_meta[d.country_a]?.color}">${d.country_a}</span> ↔ <span style="color:${S.meta.country_meta[d.country_b]?.color}">${d.country_b}</span>`:'';showTip(`<b>${s.toString().substring(0,32)}</b><br>↔ <b>${t.toString().substring(0,32)}</b><br>r = <span class="${cc}">${d.correlation}</span>${pT}${cT}`,ev);})
+    .on('mouseover',(ev,d)=>{const s=stripPfx(nid(d.source)),t=stripPfx(nid(d.target));const cc=d.correlation>0?'tr':'tn';const pT=d.projected?'<br><span style="color:var(--af)">projected</span>':'';const cT=d.country_a?`<br><span style="color:${S.meta.country_meta[d.country_a]?.color}">${d.country_a}</span> x <span style="color:${S.meta.country_meta[d.country_b]?.color}">${d.country_b}</span>`:'';showTip(`<b>${s.substring(0,32)}</b><br>x <b>${t.substring(0,32)}</b><br>r = <span class="${cc}">${d.correlation}</span>${pT}${cT}`,ev);})
     .on('mousemove',ev=>{const x=ev.clientX,y=ev.clientY,W2=window.innerWidth;tip.style.left=(x+16>W2-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';})
     .on('mouseout',hideTip)
-    .on('click',(ev,d)=>{if(S.mode!=='sever')return;ev.stopPropagation();if(d.hypothetical){S.hyp=S.hyp.filter(h=>h!==d);}else{S.severed.add(d.id);}updateSevList();const ae2=getAE();renderImpact(`severed`,getNodes(),allE,ae2);globePulse();renderNet();});
+    .on('click',(ev,d)=>{if(S.mode!=='sever')return;ev.stopPropagation();if(d.hypothetical){S.hyp=S.hyp.filter(h=>h!==d);}else{S.severed.add(d.id);}updateSevList();const ae2=getAE();renderImpact('severed',getNodes(),allE,ae2);globePulse();renderNet();});
 
-  // Edge r labels - white
+  // Edge r labels
   const eLbls=gE.selectAll('text').data(aeR).join('text')
     .attr('text-anchor','middle').attr('font-family','DM Mono,monospace')
     .attr('font-size',d=>d.strength>.80?8:d.strength>.60?7:6)
@@ -563,10 +660,21 @@ function renderNet(){
   nSel.append('circle').attr('class','nc')
     .attr('r',d=>6+d.centrality*11)
     .attr('fill',d=>{if(selId){if(d.id===selId)return CAT[d.category]||'#888';if(connSel?.has(d.id))return'var(--s2)';return'var(--bg)';}const conn=aeR.some(e=>nid(e.source)===d.id||nid(e.target)===d.id);if(!conn&&S.severed.size>0)return'var(--s2)';return S.addSrc?.id===d.id?'rgba(96,200,240,.15)':'var(--s1)';})
-    .attr('stroke',d=>{if(selId){if(d.id===selId)return'#ffffff';if(connSel?.has(d.id))return CAT[d.category]||'#555';return'var(--b1)';}const conn=aeR.some(e=>nid(e.source)===d.id||nid(e.target)===d.id);if(!conn&&S.severed.size>0)return'var(--sv)';if(S.addSrc?.id===d.id)return'var(--hy)';return CAT[d.category]||'#555';})
+    .attr('stroke',d=>{
+      // Country-coloured rings for global/cross views
+      if((S.level==='global'||S.level==='cross')&&d.country){
+        const cc=S.meta.country_meta[d.country]?.color;
+        if(selId){if(d.id===selId)return'#ffffff';if(connSel?.has(d.id))return cc||'#555';return'var(--b1)';}
+        return cc||CAT[d.category]||'#555';
+      }
+      if(selId){if(d.id===selId)return'#ffffff';if(connSel?.has(d.id))return CAT[d.category]||'#555';return'var(--b1)';}
+      const conn=aeR.some(e=>nid(e.source)===d.id||nid(e.target)===d.id);
+      if(!conn&&S.severed.size>0)return'var(--sv)';
+      if(S.addSrc?.id===d.id)return'var(--hy)';
+      return CAT[d.category]||'#555';
+    })
     .attr('stroke-width',d=>selId&&d.id===selId?2.5:1.2)
     .attr('opacity',d=>{if(selId){if(d.id===selId)return 1;if(connSel?.has(d.id))return.9;return.18;}return 1;});
-  if(S.level==='cross'){nSel.append('circle').attr('r',3.5).attr('cx',d=>8+d.centrality*11-3).attr('cy',d=>-(8+d.centrality*11-3)).attr('fill',d=>S.meta.country_meta[d.country]?.color||'#888').attr('opacity',d=>selId&&!connSel?.has(d.id)&&d.id!==selId?.18:1);}
   nSel.append('text')
     .attr('y',d=>-(8+d.centrality*11)).attr('text-anchor','middle')
     .attr('font-family','DM Mono,monospace').attr('font-size',d=>selId&&d.id===selId?8.5:7.5+d.centrality*1.5)
@@ -574,34 +682,48 @@ function renderNet(){
     .attr('opacity',d=>{if(selId)return d.id===selId?1:connSel?.has(d.id)?.85:.25;return 1;})
     .attr('font-weight',d=>selId&&d.id===selId?'500':'300')
     .attr('pointer-events','none')
-    .text(d=>{const l=d.label||d.id;return l.length>26?l.substring(0,24)+'…':l;});
+    .text(d=>{const l=d.label||stripPfx(d.id);return l.length>26?l.substring(0,24)+'…':l;});
   nSel
-    .on('mouseover',(ev,d)=>{const lbl=d.label||d.id;const iso3=S.level==='country'?S.country:'USA';const rv=r2(lbl,aeR,iso3);const cT=d.country?`<br>Country: <span style="color:${S.meta.country_meta[d.country]?.color}">${d.country}</span>`:'';showTip(`<b>${lbl}</b><br>Category: ${d.category}${cT}<br>Connections: ${d.degree}<br>Centrality: ${(d.centrality*100).toFixed(0)}%${rv!==null?`<br>R² (${iso3}): <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);})
+    .on('mouseover',(ev,d)=>{const lbl=d.label||d.id;const iso3=d.country||(S.level==='country'?S.country:'USA');const rv=r2(d.id,lbl,aeR,iso3);const cT=d.country?`<br>Country: <span style="color:${S.meta.country_meta[d.country]?.color}">${d.country}</span>`:'';showTip(`<b>${d.label||stripPfx(d.id)}</b><br>Category: ${d.category}${cT}<br>Connections: ${d.degree}<br>Centrality: ${(d.centrality*100).toFixed(0)}%${rv!==null?`<br>R²: <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);})
     .on('mousemove',ev=>{const x=ev.clientX,y=ev.clientY,W2=window.innerWidth;tip.style.left=(x+16>W2-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';})
     .on('mouseout',hideTip)
     .on('click',(ev,d)=>{ev.stopPropagation();if(S.mode==='add'){if(!S.addSrc){S.addSrc=d;renderNet();}else if(S.addSrc.id!==d.id){const ex=getCurEdges().find(e=>{const s=nid(e.source),t=nid(e.target);return(s===S.addSrc.id&&t===d.id)||(s===d.id&&t===S.addSrc.id);});const cr=ex?ex.correlation:.5;S.hyp.push({source:S.addSrc.id,target:d.id,correlation:cr,strength:Math.abs(cr),sign:cr>0?'pos':'neg',hypothetical:true,id:'h'+Date.now()});S.addSrc=null;updateSevList();const ae2=getAE();renderImpact('after adding hypothetical',getNodes(),getCurEdges(),ae2);renderNet();}return;}selectNode(d);})
     .call(d3.drag().on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
   if(sim)sim.stop();
+  // Cluster force: pulls each node toward its country centroid (global & cross views)
+  const needsCluster=S.level==='global'||S.level==='cross';
+  const clusterForce=needsCluster?alpha=>{
+    S.gNodes.forEach(n=>{
+      const c=CTRD[n.country];if(!c)return;
+      const tx=W/2+c[0]*W*.30,ty=H/2+c[1]*H*.30;
+      n.vx+=(tx-n.x)*alpha*.18;
+      n.vy+=(ty-n.y)*alpha*.18;
+    });
+  }:null;
+
   sim=d3.forceSimulation(S.gNodes)
-    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>170-d.strength*90).strength(.18))
-    .force('charge',d3.forceManyBody().strength(-420))
+    .alphaDecay(.035)
+    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>500-d.strength*270).strength(.15))
+    .force('charge',d3.forceManyBody().strength(-500))
     .force('center',d3.forceCenter(W/2,H/2))
-    .force('collide',d3.forceCollide(d=>22+d.centrality*16))
-    .force('x',d3.forceX(W/2).strength(.015)).force('y',d3.forceY(H/2).strength(.015))
+    .force('collide',d3.forceCollide(d=>24+d.centrality*18))
+    .force('x',d3.forceX(W/2).strength(.012)).force('y',d3.forceY(H/2).strength(.012))
+    .force('cluster',clusterForce)
     .on('tick',()=>{
       eLines.attr('x1',d=>typeof d.source==='object'?d.source.x:0).attr('y1',d=>typeof d.source==='object'?d.source.y:0).attr('x2',d=>typeof d.target==='object'?d.target.x:0).attr('y2',d=>typeof d.target==='object'?d.target.y:0);
       eLbls.attr('x',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.x+d.target.x)/2:0).attr('y',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.y+d.target.y)/2:0);
       nSel.attr('transform',d=>`translate(${d.x??W/2},${d.y??H/2})`);
       sevLines.attr('x1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.x??0;}).attr('y1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.y??0;}).attr('x2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.x??0;}).attr('y2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.y??0;});
-    });
+    })
+    .on('end',autoZoom);
 
   const parts=[];
   if(S.severed.size)parts.push(`<span style="color:var(--sv)">${S.severed.size} severed</span>`);
   if(S.hyp.length)parts.push(`<span style="color:var(--hy)">${S.hyp.length} hyp</span>`);
-  if(S.selNode)parts.push(`focus: ${(S.selNode.label||S.selNode.id).substring(0,28)}`);
-  if(S.addSrc)parts.push(`<span style="color:var(--hy)">add src: ${(S.addSrc.label||S.addSrc.id).substring(0,18)}</span>`);
-  if(S.yE>2023)parts.push(`<span style="color:var(--af)">◈ forecast window</span>`);
+  if(S.selNode)parts.push(`focus: ${(S.selNode.label||stripPfx(S.selNode.id)).substring(0,28)}`);
+  if(S.addSrc)parts.push(`<span style="color:var(--hy)">add src: ${(S.addSrc.label||stripPfx(S.addSrc.id)).substring(0,18)}</span>`);
+  if(S.yE>2023)parts.push(`<span style="color:var(--af)">forecast window</span>`);
   $('rdout').innerHTML=parts.join(' · ');
 }
 
@@ -620,7 +742,7 @@ function initGlobe(){
   gSc.add(new THREE.Mesh(new THREE.SphereGeometry(1.09,32,32),new THREE.MeshPhongMaterial({color:0x0a1628,transparent:true,opacity:.07,side:THREE.FrontSide})));
   Object.entries(S.meta.country_meta).forEach(([iso3,m])=>{
     const p=ll2v(m.lat,m.lon,1.025);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(.03,.042,32),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color),transparent:true,opacity:.45,side:THREE.DoubleSide}));
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.03,.042,32),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color),transparent:true,opacity:.55,side:THREE.DoubleSide}));
     ring.position.copy(p);ring.lookAt(0,0,0);gSc.add(ring);
     const dot=new THREE.Mesh(new THREE.SphereGeometry(.022,12,12),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color)}));
     dot.position.copy(p);gSc.add(dot);
@@ -648,41 +770,24 @@ function buildGlobeTex(){
   else{const g=ctx.createLinearGradient(0,0,0,hs);g.addColorStop(0,'#1a3a5c');g.addColorStop(1,'#0d2035');ctx.fillStyle=g;ctx.fillRect(0,0,sz,hs);ctx.fillStyle='#2a4220';}
   function lxy(lon,lat){return[(lon+180)/360*sz,(90-lat)/180*hs];}
   function poly(pts){ctx.beginPath();pts.forEach((p,i)=>{const[x,y]=lxy(p[0],p[1]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.closePath();ctx.fill();}
-  // North America
   poly([[-168,71],[-140,70],[-120,68],[-100,73],[-85,73],[-65,63],[-52,47],[-52,44],[-66,44],[-70,40],[-76,34],[-80,25],[-88,16],[-84,8],[-77,8],[-76,10],[-84,10],[-90,16],[-110,22],[-117,32],[-124,37],[-124,49],[-130,54],[-140,58],[-152,60],[-168,63],[-168,71]]);
-  // Greenland
   poly([[-18,76],[-14,72],[-20,68],[-44,60],[-52,61],[-64,68],[-54,82],[-18,83],[-18,76]]);
-  // South America
   poly([[-80,12],[-62,12],[-50,5],[-36,-4],[-35,-8],[-38,-15],[-40,-22],[-44,-23],[-48,-28],[-52,-33],[-58,-38],[-62,-42],[-65,-55],[-68,-54],[-72,-48],[-75,-38],[-76,-30],[-78,-5],[-80,12]]);
-  // Europe
   poly([[-10,36],[5,36],[22,36],[30,38],[36,41],[42,42],[46,48],[32,60],[28,72],[18,72],[10,62],[2,52],[-4,44],[-10,38],[-10,36]]);
-  // Scandinavia
   poly([[6,57],[12,56],[18,60],[26,70],[28,72],[20,70],[14,66],[8,62],[6,57]]);
-  // British Isles
   poly([[-6,58],[2,58],[2,52],[-2,50],[-5,50],[-6,52],[-8,54],[-6,58]]);
-  // Africa
   poly([[-18,16],[0,16],[36,16],[42,12],[50,12],[52,2],[44,-12],[36,-22],[30,-30],[18,-34],[16,-30],[14,-22],[8,-6],[8,4],[0,4],[-18,16]]);
-  // Madagascar
   poly([[44,-12],[46,-14],[50,-24],[48,-26],[44,-22],[44,-12]]);
-  // Asia
   poly([[32,70],[60,70],[100,72],[140,72],[142,50],[136,36],[126,24],[108,10],[100,2],[96,4],[80,8],[70,22],[62,22],[50,28],[42,38],[32,42],[32,70]]);
-  // Southeast Asia
   poly([[100,20],[106,16],[108,2],[104,-2],[108,-8],[116,-2],[118,4],[122,24],[116,24],[108,20],[100,20]]);
-  // Japan
   poly([[130,32],[136,34],[140,38],[142,44],[140,44],[138,40],[132,32],[130,32]]);
-  // Australia
   poly([[114,-22],[124,-14],[130,-12],[136,-12],[140,-17],[148,-20],[152,-24],[152,-30],[150,-38],[144,-38],[140,-36],[134,-34],[128,-34],[116,-34],[114,-28],[114,-22]]);
-  // Borneo
   poly([[108,6],[118,6],[118,-2],[108,2],[108,6]]);
-  // Sumatra
   poly([[96,6],[106,2],[106,-6],[96,-2],[96,6]]);
-  // Iceland
   poly([[-24,64],[-14,64],[-14,66],[-24,66],[-24,64]]);
-  // Antarctica
   ctx.fillStyle=dark?'#1a1e28':'#d0d8e0';
   poly([[-180,-70],[-120,-72],[-60,-70],[0,-68],[60,-70],[120,-72],[180,-70],[180,-90],[-180,-90]]);
   ctx.fillStyle=dark?'#14181f':'#2a4220';
-  // Grid lines
   ctx.strokeStyle=dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.06)';ctx.lineWidth=.5;
   [-60,-30,0,30,60].forEach(lat=>{const y=(90-lat)/180*hs;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sz,y);ctx.stroke();});
   [-120,-60,0,60,120].forEach(lon=>{const x=(lon+180)/360*sz;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,hs);ctx.stroke();});
@@ -696,31 +801,53 @@ function buildGlobeTex(){
 function toggleGlobeStyle(){S.globeStyle=S.globeStyle==='dark'?'natural':'dark';$('gs-lbl').textContent=S.globeStyle==='dark'?'DARK':'NATURAL';buildGlobeTex();}
 function ll2v(lat,lon,r){const phi=(90-lat)*Math.PI/180,th=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(th),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(th));}
 function mkSpr(text,color){const cv=document.createElement('canvas');cv.width=128;cv.height=32;const ctx=cv.getContext('2d');ctx.font='bold 16px monospace';ctx.fillStyle=color;ctx.fillText(text,4,22);const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));sp.scale.set(.18,.045,1);return sp;}
-function clearArcs(){gArcs.forEach(a=>gSc.remove(a));gArcs=[];}
+function clearArcs(){if(gSc)gArcs.forEach(a=>gSc.remove(a));gArcs=[];}
 function drawArc(la,loa,lb,lob,color,op){
+  if(!gSc)return;
   const p1=ll2v(la,loa,1.02),p2=ll2v(lb,lob,1.02);
-  const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).normalize().multiplyScalar(1.55);
-  const pts=new THREE.QuadraticBezierCurve3(p1,mid,p2).getPoints(50);
-  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:op||.5}));
+  const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).normalize().multiplyScalar(1.6);
+  const pts=new THREE.QuadraticBezierCurve3(p1,mid,p2).getPoints(60);
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:op||.6}));
   gSc.add(line);gArcs.push(line);
 }
 function globeCountryMode(){
-  if(!S.meta)return;clearArcs();
-  S.cross.filter(e=>e.strength>=S.thr).slice(0,35).forEach(e=>{
-    const ca=S.meta.country_meta[e.country_a],cb=S.meta.country_meta[e.country_b];if(!ca||!cb)return;
-    drawArc(ca.lat,ca.lon,cb.lat,cb.lon,ARC[e.arc_type]||'#4a7fb5',.08+e.strength*.22);
-  });
-  if(S.level==='country'){const m=S.meta.country_meta[S.country];Object.entries(S.meta.country_meta).filter(([k])=>k!==S.country).forEach(([k,km])=>drawArc(m.lat,m.lon,km.lat,km.lon,m.color,.45));}
+  if(!S.meta||!gSc)return;clearArcs();
+  const crossVis=S.cross.filter(e=>e.strength>=Math.min(S.thr,0.72)).slice(0,40);
+  if(crossVis.length===0){
+    // Fallback: draw all country pairs with light connectors
+    const cms=Object.values(S.meta.country_meta);
+    for(let i=0;i<cms.length;i++)for(let j=i+1;j<cms.length;j++)
+      drawArc(cms[i].lat,cms[i].lon,cms[j].lat,cms[j].lon,'#2a3a5a',.18);
+  } else {
+    crossVis.forEach(e=>{
+      const ca=S.meta.country_meta[e.country_a],cb=S.meta.country_meta[e.country_b];if(!ca||!cb)return;
+      drawArc(ca.lat,ca.lon,cb.lat,cb.lon,ARC[e.arc_type]||'#4a7fb5',.40+e.strength*.50);
+    });
+  }
+  if(S.level==='country'||S.level==='global'){
+    const refCountry=S.level==='country'?S.country:null;
+    if(refCountry){const m=S.meta.country_meta[refCountry];Object.entries(S.meta.country_meta).filter(([k])=>k!==refCountry).forEach(([,km])=>drawArc(m.lat,m.lon,km.lat,km.lon,m.color,.60));}
+  }
 }
 function globeCityMode(){
-  if(!S.meta)return;clearArcs();
-  Object.entries(S.meta.country_meta).forEach(([ia,ma])=>Object.entries(S.meta.country_meta).forEach(([ib,mb])=>{if(ia>=ib)return;drawArc(ma.lat,ma.lon,mb.lat,mb.lon,'#1e2535',.15);}));
-  S.meta.city_cross.forEach(e=>{const ca=S.meta.cities[e.city_a],cb=S.meta.cities[e.city_b];if(!ca||!cb)return;drawArc(ca.lat,ca.lon,cb.lat,cb.lon,e.sign==='pos'?'#4a8a20':'#8a2030',.15+e.strength*.55);});
+  if(!S.meta||!gSc)return;clearArcs();
+  // Show country-country base lines
+  const cms=Object.values(S.meta.country_meta);
+  for(let i=0;i<cms.length;i++)for(let j=i+1;j<cms.length;j++)
+    drawArc(cms[i].lat,cms[i].lon,cms[j].lat,cms[j].lon,'#1e2535',.12);
+  // Draw within-country intercity arcs
+  const intra=(S.meta.city_intra||[]).filter(e=>e.iso3===S.country&&e.strength>=S.thr);
+  intra.forEach(e=>{
+    const ca=S.meta.cities[e.city_a],cb=S.meta.cities[e.city_b];if(!ca||!cb)return;
+    drawArc(ca.lat,ca.lon,cb.lat,cb.lon,e.sign==='pos'?'#4a8a20':'#8a2030',.35+e.strength*.55);
+  });
 }
 function globePulse(){
-  if(!S.meta)return;clearArcs();
-  Object.entries(S.meta.country_meta).forEach(([ia,ma])=>Object.entries(S.meta.country_meta).forEach(([ib,mb])=>{if(ia>=ib)return;drawArc(ma.lat,ma.lon,mb.lat,mb.lon,'#1e2535',.15);}));
-  if(S.level==='country'){const m=S.meta.country_meta[S.country];Object.entries(S.meta.country_meta).filter(([k])=>k!==S.country).forEach(([k,km])=>drawArc(m.lat,m.lon,km.lat,km.lon,'#ff3838',.55));}
+  if(!S.meta||!gSc)return;clearArcs();
+  const cms=Object.values(S.meta.country_meta);
+  for(let i=0;i<cms.length;i++)for(let j=i+1;j<cms.length;j++)
+    drawArc(cms[i].lat,cms[i].lon,cms[j].lat,cms[j].lon,'#1e2535',.15);
+  if(S.level==='country'){const m=S.meta.country_meta[S.country];Object.entries(S.meta.country_meta).filter(([k])=>k!==S.country).forEach(([,km])=>drawArc(m.lat,m.lon,km.lat,km.lon,'#ff3838',.55));}
 }
 
 // ── DRAG HANDLES ──
@@ -733,7 +860,7 @@ function initDragHandles(){
   document.addEventListener('mousemove',e=>{
     if(!which)return;
     const{el,prop,inv}=which;
-    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(100,Math.min(500,sW+dx))+'px';}
+    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(80,Math.min(520,sW+dx))+'px';}
     else{const dy=sY-e.clientY;$(el).style.height=Math.max(60,Math.min(450,sW+dy))+'px';}
   });
   document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();}});
@@ -747,8 +874,10 @@ async function init(){
     buildCountryDD();buildNodeList();buildRiskGrid();updateMeta();
     initDragHandles();
     requestAnimationFrame(()=>requestAnimationFrame(async()=>{
-      await renderNet();initGlobe();globeCountryMode();
-      const ae=getAE();renderImpact('baseline',getNodes(),ae,ae);
+      try{
+        await renderNet();initGlobe();globeCountryMode();
+        const ae=getAE();renderImpact('baseline',getNodes(),ae,ae);
+      }catch(err2){console.error('Render error:',err2);$('loader-status').textContent='Render error: '+err2.message;}
       $('loader').style.display='none';
     }));
   }catch(err){$('loader-status').textContent='Error: '+err.message;console.error(err);}
