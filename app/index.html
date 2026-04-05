@@ -113,9 +113,7 @@ tr.hi td{color:var(--tx);}
 .rc-sig.w{color:var(--warn);}
 .rc-arrow{font-size:9px;}
 .rc-empty{font-size:8px;color:var(--mu);font-style:italic;}
-#pg{width:250px;min-width:140px;max-width:480px;background:var(--s1);position:relative;flex-shrink:0;}
-#gcv{width:100%;height:100%;display:block;cursor:grab;}
-#gcv:active{cursor:grabbing;}
+#gcv:active{cursor:grabbing!important;}
 #tip{position:fixed;background:#0b0c10;border:1px solid var(--b2);padding:8px 11px;font-size:9px;color:var(--tx);pointer-events:none;z-index:999;display:none;max-width:240px;line-height:1.8;border-radius:3px;}
 #tip b{color:var(--wh);}
 .tr{color:var(--ph);}.tn{color:var(--nh);}
@@ -163,6 +161,28 @@ tr.hi td{color:var(--tx);}
 #nls > .stl{padding:8px 12px 4px;flex-shrink:0;}
 #nls > .thr-row{padding:0 12px;flex-shrink:0;}
 #ntree{flex:1;overflow-y:auto;overflow-x:hidden;}
+/* ── SIGN FILTER ── */
+.sign-row{display:flex;align-items:center;gap:4px;padding:0 12px 8px;}
+.sign-btn{padding:2px 7px;font-size:7px;letter-spacing:.07em;border:1px solid var(--b2);color:var(--mu);cursor:pointer;border-radius:2px;transition:all .1s;user-select:none;}
+.sign-btn:hover{color:var(--mu2);border-color:var(--mu2);}
+.sign-btn.on.pos{color:var(--ph);border-color:var(--ph);background:rgba(200,240,96,.06);}
+.sign-btn.on.neg{color:var(--nh);border-color:var(--nh);background:rgba(240,96,128,.06);}
+.sign-btn.on.both{color:var(--mu2);border-color:var(--mu2);}
+/* ── DATA SOURCE SELECTOR ── */
+.src-row{display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;font-size:8px;color:var(--mu2);transition:background .1s;}
+.src-row:hover{background:var(--s2);}
+.src-chk{width:11px;height:11px;border:1px solid var(--b3);border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;color:#000;transition:all .1s;}
+.src-chk.on{background:var(--ph);border-color:var(--ph);}
+.src-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+/* ── RESET BUTTON ── */
+.reset-btn{margin:6px 10px;padding:6px 8px;text-align:center;border:1px solid var(--b2);color:var(--mu2);cursor:pointer;font-size:8px;transition:all .12s;border-radius:2px;letter-spacing:.08em;}
+.reset-btn:hover{color:var(--tx);border-color:var(--mu2);}
+.reset-btn.has-changes{color:var(--af);border-color:var(--af);}
+/* ── CLUSTER BACKDROPS ── */
+.cluster-bd{pointer-events:none;}
+/* ── GLOBE FIX ── */
+#pg{width:280px;min-width:160px;background:var(--s1);position:relative;flex-shrink:0;display:flex;flex-direction:column;}
+#gcv{flex:1;width:100%;display:block;cursor:grab;min-height:0;}
 </style>
 </head>
 <body>
@@ -218,9 +238,15 @@ tr.hi td{color:var(--tx);}
     <div class="sec" id="nls">
       <div class="stl">Nodes <span id="node-count" style="color:var(--mu2)"></span></div>
       <div class="thr-row">
-        <span style="font-size:8px;color:var(--mu)">r≥</span>
-        <input type="range" id="thr" min="0.0" max="0.99" step="0.01" value="0.45" oninput="onThr(this)">
-        <span class="thr-val" id="thrv">0.45</span>
+        <span style="font-size:8px;color:var(--mu)">|r|≥</span>
+        <input type="range" id="thr" min="0.0" max="0.99" step="0.01" value="0.35" oninput="onThr(this)">
+        <span class="thr-val" id="thrv">0.35</span>
+      </div>
+      <div class="sign-row">
+        <span style="font-size:7px;color:var(--mu);margin-right:2px">SIGN:</span>
+        <div class="sign-btn on both" id="sb-both" onclick="setSign('both',this)">BOTH</div>
+        <div class="sign-btn pos" id="sb-pos"  onclick="setSign('pos',this)">+ ONLY</div>
+        <div class="sign-btn neg" id="sb-neg"  onclick="setSign('neg',this)">− ONLY</div>
       </div>
       <div class="ns-bar">
         <input class="ns-input" id="nsearch" placeholder="Search indicators…" oninput="buildNodeList()">
@@ -242,7 +268,24 @@ tr.hi td{color:var(--tx);}
     <div class="sec" id="sev-sec" style="display:none">
       <div class="stl">Modified <span id="sev-cnt" style="color:var(--sv)"></span></div>
       <div id="sev-list"></div>
-      <div class="rbtn" onclick="restoreAll()">RESTORE ALL</div>
+    </div>
+    <div class="sec" style="padding:6px 0;">
+      <div id="reset-btn" class="reset-btn" onclick="restoreAll()" title="Reset all severed / hypothetical edges and recalculate R²">↺ RESET RELATIONSHIPS</div>
+      <div style="font-size:7px;color:var(--mu);padding:0 12px 2px;line-height:1.6" id="r2-note">R² recalculates across all nodes when edges change.</div>
+    </div>
+    <div class="sec">
+      <div class="stl" style="cursor:pointer;display:flex;justify-content:space-between" onclick="toggleSrcPanel()">
+        Data Sources <span id="src-caret" style="font-size:8px">▾</span>
+      </div>
+      <div id="src-panel">
+        <div class="src-row" onclick="toggleSrc('WB')"><div class="src-chk on" id="sc-WB">✓</div><div class="src-dot" style="background:#4a7fb5"></div>World Bank (Economic)</div>
+        <div class="src-row" onclick="toggleSrc('IMF')"><div class="src-chk on" id="sc-IMF">✓</div><div class="src-dot" style="background:#f0a030"></div>IMF (Sovereign Debt)</div>
+        <div class="src-row" onclick="toggleSrc('UNDP')"><div class="src-chk on" id="sc-UNDP">✓</div><div class="src-dot" style="background:#9a7ab5"></div>UNDP (HDI/Social)</div>
+        <div class="src-row" onclick="toggleSrc('NASA')"><div class="src-chk on" id="sc-NASA">✓</div><div class="src-dot" style="background:#4a90b5"></div>NASA (Climate)</div>
+        <div style="padding:4px 10px;font-size:7px;color:var(--mu);line-height:1.6">
+          Coming: UN Comtrade (Trade)<br>IEA (Energy Consumption)<br>FAOSTAT (Food Supply)
+        </div>
+      </div>
     </div>
   </div>
   <div class="dh" id="dh-l"></div>
@@ -306,9 +349,10 @@ const SCAT={
 };
 const SCAT_COLOR={Economic:'#4a7fb5',Social:'#9a7ab5',Environmental:'#4ab56a',Other:'#4a4a5a'};
 
-const S={level:'global',countries:['USA'],mode:'explore',thr:.45,yS:2000,yE:2023,
+const S={level:'global',countries:['USA'],mode:'explore',thr:.35,sign:'both',yS:2000,yE:2023,
   severed:new Set(),hyp:[],selNode:null,addSrc:null,gNodes:[],
-  meta:null,corr:{},fc:{},cross:[],globeStyle:'dark'};
+  meta:null,corr:{},fc:{},cross:[],globeStyle:'dark',
+  sources:new Set(['WB','IMF','UNDP','NASA'])};
 // Backwards compat getter
 Object.defineProperty(S,'country',{get(){return S.countries[0]||'USA'},set(v){S.countries=[v];}});
 
@@ -336,8 +380,9 @@ async function loadData(prog){
     S.fc[iso3]=await fetch(`static/data/forecasts/${iso3}.json`).then(r=>r.json());
   }
   prog(60,'Correlations...');
-  // Preload all country + global correlations for default year range
-  for(const iso3 of [...S.meta.countries,'GLOBAL']){
+  // Preload default selection + GLOBAL (lazy-load others on demand)
+  const initLoad=[...S.countries,'GLOBAL'];
+  for(const iso3 of initLoad){
     await loadCorr(iso3,2000,2023);
   }
   prog(100,'Ready');
@@ -367,7 +412,8 @@ function buildCountryDD(){
 function toggleCountry(iso3){
   const i=S.countries.indexOf(iso3);
   if(i>=0){if(S.countries.length>1)S.countries.splice(i,1);}
-  else S.countries.push(iso3);
+  else{if(S.countries.length>=5){alert('Maximum 5 countries at once. Deselect one first.');return;}
+    S.countries.push(iso3);}
   buildCountryDD();
   applyCountryChange();
 }
@@ -418,14 +464,47 @@ async function setCountry(iso3){
 
 function setMode(m,btn){S.mode=m;S.addSrc=null;document.querySelectorAll('.hmbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderNet();}
 function onThr(el){S.thr=parseFloat(el.value);$('thrv').textContent=el.value;updateMeta();renderNet();}
+function setSign(s,btn){
+  S.sign=s;
+  document.querySelectorAll('.sign-btn').forEach(b=>{b.classList.remove('on');});
+  btn.classList.add('on');
+  updateMeta();renderNet();
+}
+function toggleSrcPanel(){
+  const p=$('src-panel');const c=$('src-caret');
+  const open=p.style.display==='none';p.style.display=open?'block':'none';c.textContent=open?'▾':'▸';
+}
+function toggleSrc(src){
+  if(S.sources.has(src))S.sources.delete(src);else S.sources.add(src);
+  const el=$('sc-'+src);if(el){el.classList.toggle('on',S.sources.has(src));el.textContent=S.sources.has(src)?'✓':'';}
+  buildNodeList();updateMeta();renderNet();
+}
+function passSign(e){
+  if(S.sign==='both')return true;
+  if(S.sign==='pos')return e.sign==='pos'||e.correlation>0;
+  return e.sign==='neg'||e.correlation<0;
+}
+// Dynamic cluster positions based on selected/active countries
+function getCtrd(){
+  if(!S.meta)return CTRD;
+  const active=(S.level==='global'||S.level==='cross')?S.meta.countries:
+    (S.level==='country'&&S.countries.length>1)?S.countries:[];
+  if(!active.length)return CTRD;
+  const n=active.length,result={};
+  active.forEach((iso3,i)=>{
+    const angle=(i/n)*2*Math.PI-Math.PI/2;
+    result[iso3]=[Math.cos(angle)*.62,Math.sin(angle)*.58];
+  });
+  return result;
+}
 async function onYear(){
   const s=parseInt($('ys-s').value),e=parseInt($('ys-e').value);
   if(e<=s)$('ys-e').value=Math.min(s+1,2038);
   S.yS=parseInt($('ys-s').value);S.yE=parseInt($('ys-e').value);
   $('yv-s').textContent=S.yS;$('yv-e').textContent=S.yE;
   const isFC=S.yE>2023;$('fc-badge').textContent=isFC?'◈ FORECAST':'';
-  // Reload correlations for all countries + GLOBAL for the new year window
-  for(const iso3 of [...S.meta.countries,'GLOBAL']){
+  // Reload correlations for selected + GLOBAL for the new year window
+  for(const iso3 of [...S.countries,'GLOBAL']){
     await loadCorr(iso3,S.yS,S.yE);
   }
   updateMeta();await renderNet();
@@ -552,7 +631,24 @@ function getCurEdges(){
   }
   return[];
 }
-function getAE(){return[...getCurEdges().filter(e=>!S.severed.has(e.id)),...S.hyp];}
+function getAE(){return[...getCurEdges().filter(e=>!S.severed.has(e.id)&&passSign(e)),...S.hyp];}
+function updateResetBtn(){
+  const n=S.severed.size+S.hyp.length;
+  const btn=$('reset-btn');if(btn)btn.classList.toggle('has-changes',n>0);
+  const note=$('r2-note');if(note)note.textContent=n>0?`R² recalculated — ${n} edge${n>1?'s':''} modified.`:'R² recalculates across all nodes when edges change.';
+}
+
+// ── NODE ITEM FACTORY ──
+function makeNodeItem(n,ae,cat,paddingLeft='30px'){
+  const conn=ae.some(e=>nid(e.source)===n.id||nid(e.target)===n.id);
+  const lbl=n.label||n.id;
+  const item=document.createElement('div');item.className='nitem'+(S.selNode?.id===n.id?' on':'');
+  item.style.paddingLeft=paddingLeft;
+  const dispLbl=lbl.length>24?lbl.substring(0,22)+'…':lbl;
+  item.innerHTML=`<div class="ndot" style="background:${CAT[cat]||'#555'};${!conn?'opacity:.3':''}"></div><span class="nname" title="${lbl}">${dispLbl}</span><span class="ndeg">${n.degree}</span>`;
+  item.onclick=()=>selectNode(n);
+  return item;
+}
 
 // ── NODE LIST (Hierarchical tree with search) ──
 const _treeOpen={};  // persists open/close state: 'SCAT/CAT' → bool
@@ -562,23 +658,34 @@ function buildNodeList(){
   const q=($('nsearch')?.value||'').toLowerCase().trim();
   const tree=$('ntree');if(!tree)return;tree.innerHTML='';
 
-  // Group nodes into super-cat → category → list
-  const buckets={};  // supercat → cat → [node]
-  nodes.forEach(n=>{
+  // Source → category mapping for source filtering
+  const SRC_CAT={'WB':['Economy','Energy','Trade','Governance','Social','Health','Education','Demographics','Demographic','Environment','Climate'],
+    'IMF':['SovereignDebt'],'UNDP':['Social'],'NASA':['Climate']};
+  const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
+  allowedCats.add('Other'); // always show misc
+
+  // Group nodes into super-cat → category → country → list
+  const buckets={};  // supercat → cat → country → [node]
+  nodes.filter(n=>allowedCats.has(n.category||'Other')).forEach(n=>{
     const cat=n.category||'Other';
     const sup=Object.keys(SCAT).find(k=>SCAT[k].includes(cat))||'Other';
-    if(!buckets[sup])buckets[sup]={}; if(!buckets[sup][cat])buckets[sup][cat]=[];
-    buckets[sup][cat].push(n);
+    const ctr=n.country||'_';
+    if(!buckets[sup])buckets[sup]={}; if(!buckets[sup][cat])buckets[sup][cat]={};
+    if(!buckets[sup][cat][ctr])buckets[sup][cat][ctr]=[];
+    buckets[sup][cat][ctr].push(n);
   });
 
-  // Filter by search
+  // Filter by search — handles 3-level structure
   const filteredBuckets={};
   Object.entries(buckets).forEach(([sup,cats])=>{
-    Object.entries(cats).forEach(([cat,ns])=>{
-      const filtered=q?ns.filter(n=>(n.label||n.id).toLowerCase().includes(q)):ns;
-      if(!filtered.length)return;
-      if(!filteredBuckets[sup])filteredBuckets[sup]={};
-      filteredBuckets[sup][cat]=filtered.sort((a,b)=>b.centrality-a.centrality);
+    Object.entries(cats).forEach(([cat,countries])=>{
+      Object.entries(countries).forEach(([ctr,ns])=>{
+        const filtered=q?ns.filter(n=>(n.label||n.id).toLowerCase().includes(q)):ns;
+        if(!filtered.length)return;
+        if(!filteredBuckets[sup])filteredBuckets[sup]={};
+        if(!filteredBuckets[sup][cat])filteredBuckets[sup][cat]={};
+        filteredBuckets[sup][cat][ctr]=filtered.sort((a,b)=>b.centrality-a.centrality);
+      });
     });
   });
 
@@ -595,24 +702,35 @@ function buildNodeList(){
     hdr.onclick=()=>{const o=body.classList.toggle('open');hdr.querySelector('.cat-icon').classList.toggle('open',o);_treeOpen[supKey]=o;};
     grp.appendChild(hdr);
 
-    Object.entries(cats).forEach(([cat,ns])=>{
+    Object.entries(cats).forEach(([cat,countries])=>{
       const catKey=`cat_${cat}`;
+      const totalCatN=Object.values(countries).reduce((a,b)=>a+b.length,0);
       const catOpen=_treeOpen[catKey]!=null?_treeOpen[catKey]:(q||false);
       const sub=document.createElement('div');
       const shdr=document.createElement('div');shdr.className='subcat-hdr';
-      shdr.innerHTML=`<span class="subcat-icon${catOpen?' open':''}">▶</span><span class="ndot" style="background:${CAT[cat]||'#555'};width:5px;height:5px;border-radius:50%;flex-shrink:0"></span><span class="subcat-name">${cat}</span><span class="subcat-cnt">${ns.length}</span>`;
+      shdr.innerHTML=`<span class="subcat-icon${catOpen?' open':''}">▶</span><span class="ndot" style="background:${CAT[cat]||'#555'};width:5px;height:5px;border-radius:50%;flex-shrink:0"></span><span class="subcat-name">${cat}</span><span class="subcat-cnt">${totalCatN}</span>`;
       const sbody=document.createElement('div');sbody.className='subcat-body'+(catOpen?' open':'');
       shdr.onclick=e=>{e.stopPropagation();const o=sbody.classList.toggle('open');shdr.querySelector('.subcat-icon').classList.toggle('open',o);_treeOpen[catKey]=o;};
-      ns.forEach(n=>{
-        const conn=ae.some(e=>nid(e.source)===n.id||nid(e.target)===n.id);
-        const lbl=n.label||n.id;
-        const item=document.createElement('div');item.className='nitem'+(S.selNode?.id===n.id?' on':'');
-        item.style.paddingLeft='30px';
-        const ctryDot=n.country?`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${S.meta.country_meta[n.country]?.color||'#888'};margin-right:3px;vertical-align:middle;opacity:.8;flex-shrink:0"></span>`:'';
-        const dispLbl=lbl.length>24?lbl.substring(0,22)+'…':lbl;
-        item.innerHTML=`<div class="ndot" style="background:${CAT[cat]||'#555'};${!conn?'opacity:.3':''}"></div><span class="nname" title="${lbl}">${ctryDot}${dispLbl}</span><span class="ndeg">${n.degree}</span>`;
-        item.onclick=()=>selectNode(n);
-        sbody.appendChild(item);
+
+      // 3rd level: per country (only show country header if >1 country)
+      const ctryList=Object.entries(countries);
+      const multiCtr=ctryList.length>1||ctryList[0]?.[0]!=='_';
+      ctryList.forEach(([ctr,ns])=>{
+        if(multiCtr&&ctr!=='_'&&S.meta?.country_meta[ctr]){
+          // Country sub-header
+          const cKey=`ctr_${cat}_${ctr}`;
+          const cOpen=_treeOpen[cKey]!=null?_treeOpen[cKey]:(q||true);
+          const cSub=document.createElement('div');
+          const cMeta=S.meta.country_meta[ctr];
+          const cHdr=document.createElement('div');cHdr.className='subcat-hdr';cHdr.style.paddingLeft='30px';
+          cHdr.innerHTML=`<span class="subcat-icon${cOpen?' open':''}" style="font-size:6px">▶</span><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${cMeta?.color||'#888'};flex-shrink:0"></span><span class="subcat-name" style="color:${cMeta?.color||'var(--mu)'}">${cMeta?.name||CNAME[ctr]||ctr}</span><span class="subcat-cnt">${ns.length}</span>`;
+          const cBody=document.createElement('div');cBody.className='subcat-body'+(cOpen?' open':'');
+          cHdr.onclick=e=>{e.stopPropagation();const o=cBody.classList.toggle('open');cHdr.querySelector('.subcat-icon').classList.toggle('open',o);_treeOpen[cKey]=o;};
+          ns.forEach(n=>cBody.appendChild(makeNodeItem(n,ae,cat,'44px')));
+          cSub.appendChild(cHdr);cSub.appendChild(cBody);sbody.appendChild(cSub);
+        } else {
+          ns.forEach(n=>sbody.appendChild(makeNodeItem(n,ae,cat,'30px')));
+        }
       });
       sub.appendChild(shdr);sub.appendChild(sbody);
       body.appendChild(sub);
@@ -764,12 +882,12 @@ function buildRiskGrid(){
 }
 
 function updateSevList(){
-  const n=S.severed.size+S.hyp.length;$('sev-cnt').textContent=n;$('sev-sec').style.display=n>0?'block':'none';
+  const n=S.severed.size+S.hyp.length;$('sev-cnt').textContent=n;$('sev-sec').style.display=n>0?'block':'none';updateResetBtn();
   const list=$('sev-list');list.innerHTML='';
   S.severed.forEach(id=>{const e=getCurEdges().find(e=>e.id===id);if(!e)return;const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--sv)">x</span> ${stripPfx(nid(e.source)).substring(0,20)} — ${stripPfx(nid(e.target)).substring(0,20)}<br><span style="color:var(--mu)">r=${e.correlation}</span>`;list.appendChild(d);});
   S.hyp.forEach(e=>{const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--hy)">+</span> ${e.source.toString().substring(0,20)} — ${e.target.toString().substring(0,20)}<br><span style="color:var(--mu)">hypothetical</span>`;list.appendChild(d);});
 }
-function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
+function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();updateResetBtn();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
 
 // ── NETWORK ──
 let sim=null,netZoom=null;
@@ -804,7 +922,24 @@ function renderNet(){
   const zg=svg.append('g');
   netZoom=d3.zoom().scaleExtent([.05,8]).on('zoom',ev=>zg.attr('transform',ev.transform));
   svg.call(netZoom);
+
+  // Right-drag: rotate the view (spin the entire layout around center)
+  let rdDrag=false,rdPrev={x:0,y:0},rdAngle=0;
+  svgEl.addEventListener('contextmenu',e=>e.preventDefault());
+  svgEl.addEventListener('mousedown',e=>{if(e.button===2){rdDrag=true;rdPrev={x:e.clientX,y:e.clientY};e.preventDefault();}});
+  svgEl.addEventListener('mousemove',e=>{
+    if(!rdDrag)return;
+    const dx=e.clientX-rdPrev.x;
+    rdAngle+=dx*.3;rdPrev={x:e.clientX,y:e.clientY};
+    // Apply rotation around center to the zoom group
+    const cur=d3.zoomTransform(svgEl);
+    d3.select('#nsvg g').attr('transform',`translate(${cur.x},${cur.y}) scale(${cur.k}) rotate(${rdAngle},${W/2/cur.k-cur.x/cur.k},${H/2/cur.k-cur.y/cur.k})`);
+  });
+  svgEl.addEventListener('mouseup',e=>{if(e.button===2)rdDrag=false;});
+  svgEl.addEventListener('mouseleave',()=>{rdDrag=false;});
+
   svg.on('click',()=>{if(S.selNode)clearSel();});
+  const gBd=zg.append('g').attr('class','cluster-bd');
   const gSev=zg.append('g'),gE=zg.append('g'),gN=zg.append('g');
 
   // Severed ghosts
@@ -874,13 +1009,13 @@ function renderNet(){
   if(sim)sim.stop();
   // Cluster force: pulls each node toward its country centroid (global, cross, multi-country views)
   const needsCluster=S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1);
+  const dynCtrd=getCtrd();
   const clusterForce=needsCluster?alpha=>{
     S.gNodes.forEach(n=>{
-      const c=CTRD[n.country];if(!c)return;
-      // Spread to 45% of viewport — gives clear country cluster separation
-      const tx=W/2+c[0]*W*.45,ty=H/2+c[1]*H*.45;
-      n.vx+=(tx-n.x)*alpha*.32;
-      n.vy+=(ty-n.y)*alpha*.32;
+      const c=dynCtrd[n.country];if(!c)return;
+      const tx=W/2+c[0]*W*.50,ty=H/2+c[1]*H*.50;
+      n.vx+=(tx-n.x)*alpha*.35;
+      n.vy+=(ty-n.y)*alpha*.35;
     });
   }:null;
 
@@ -897,6 +1032,30 @@ function renderNet(){
       eLbls.attr('x',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.x+d.target.x)/2:0).attr('y',d=>typeof d.source==='object'&&typeof d.target==='object'?(d.source.y+d.target.y)/2:0);
       nSel.attr('transform',d=>`translate(${d.x??W/2},${d.y??H/2})`);
       sevLines.attr('x1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.x??0;}).attr('y1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.y??0;}).attr('x2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.x??0;}).attr('y2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.y??0;});
+      // Cluster backdrop ellipses
+      if(needsCluster){
+        const byC={};S.gNodes.forEach(n=>{if(!n.country||!isFinite(n.x)||!isFinite(n.y))return;(byC[n.country]=byC[n.country]||[]).push(n);});
+        const cdata=Object.entries(byC);
+        gBd.selectAll('ellipse').data(cdata,d=>d[0]).join('ellipse')
+          .attr('cx',([,ns])=>ns.reduce((a,n)=>a+n.x,0)/ns.length)
+          .attr('cy',([,ns])=>ns.reduce((a,n)=>a+n.y,0)/ns.length)
+          .attr('rx',([,ns])=>{const cx=ns.reduce((a,n)=>a+n.x,0)/ns.length;return Math.max(55,Math.max(...ns.map(n=>Math.abs(n.x-cx)))+52);})
+          .attr('ry',([,ns])=>{const cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;return Math.max(40,Math.max(...ns.map(n=>Math.abs(n.y-cy)))+48);})
+          .attr('fill',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888')
+          .attr('fill-opacity',.028)
+          .attr('stroke',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888')
+          .attr('stroke-opacity',.14)
+          .attr('stroke-width',1.2)
+          .attr('stroke-dasharray','7,5');
+        // Country label in center of cluster
+        gBd.selectAll('text').data(cdata,d=>d[0]).join('text')
+          .attr('x',([,ns])=>ns.reduce((a,n)=>a+n.x,0)/ns.length)
+          .attr('y',([,ns])=>{const cy=ns.reduce((a,n)=>a+n.y,0)/ns.length;return cy-(Math.max(40,Math.max(...ns.map(n=>Math.abs(n.y-cy)))+48))-8;})
+          .attr('text-anchor','middle').attr('font-family','Instrument Serif,serif').attr('font-size',11)
+          .attr('fill',([iso3])=>S.meta?.country_meta[iso3]?.color||'#888').attr('opacity',.35)
+          .attr('pointer-events','none')
+          .text(([iso3])=>S.meta?.country_meta[iso3]?.name||CNAME[iso3]||iso3);
+      }
     })
     .on('end',autoZoom);
 
@@ -911,6 +1070,11 @@ function renderNet(){
 
 // ── GLOBE ──
 let gR,gSc,gCam,gArcs=[],gAnim=false,gMesh=null,gRot=new THREE.Quaternion(),gLastDrag=0,gDirty=true;
+function resizeGlobe(){
+  if(!gR)return;
+  const cv=$('gcv'),W=cv.clientWidth,H=cv.clientHeight;
+  if(W>0&&H>0){gR.setSize(W,H);gCam.aspect=W/H;gCam.updateProjectionMatrix();gDirty=true;}
+}
 function initGlobe(){
   const cv=$('gcv'),W=cv.clientWidth||250,H=cv.clientHeight||400;
   gR=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true,powerPreference:'high-performance'});
@@ -953,18 +1117,32 @@ function initGlobe(){
   // Quaternion-based smooth rotation (no gimbal lock)
   let drag=false,prev={x:0,y:0};
   const _axisY=new THREE.Vector3(0,1,0),_axisX=new THREE.Vector3(1,0,0);
-  cv.addEventListener('mousedown',e=>{drag=true;prev={x:e.clientX,y:e.clientY};gLastDrag=Date.now();cv.style.cursor='grabbing';});
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('mousedown',e=>{
+    e.preventDefault();drag=true;prev={x:e.clientX,y:e.clientY};gLastDrag=Date.now();
+    cv.style.cursor='grabbing';
+  });
   cv.addEventListener('mousemove',e=>{
     if(!drag)return;
     const dx=(e.clientX-prev.x)*.006,dy=(e.clientY-prev.y)*.006;
-    const qY=new THREE.Quaternion().setFromAxisAngle(_axisY,dx);
-    const qX=new THREE.Quaternion().setFromAxisAngle(_axisX,dy);
-    gRot.premultiply(qY).premultiply(qX);
+    // Left drag: full rotation; Right drag: tilt-constrained rotation (roll around Z)
+    if(e.buttons&1){
+      const qY=new THREE.Quaternion().setFromAxisAngle(_axisY,dx);
+      const qX=new THREE.Quaternion().setFromAxisAngle(_axisX,dy);
+      gRot.premultiply(qY).premultiply(qX);
+    } else if(e.buttons&2){
+      // Right-drag: rotate around Z axis (tilt) + horizontal spin
+      const _axisZ=new THREE.Vector3(0,0,1);
+      const qZ=new THREE.Quaternion().setFromAxisAngle(_axisZ,dx);
+      const qY2=new THREE.Quaternion().setFromAxisAngle(_axisY,dy*.5);
+      gRot.premultiply(qZ).premultiply(qY2);
+    }
     gSc.quaternion.copy(gRot);
     prev={x:e.clientX,y:e.clientY};gLastDrag=Date.now();gDirty=true;
   });
-  cv.addEventListener('mouseup',()=>{drag=false;cv.style.cursor='grab';});
+  cv.addEventListener('mouseup',e=>{drag=false;cv.style.cursor='grab';});
   cv.addEventListener('mouseleave',()=>{drag=false;cv.style.cursor='grab';});
+  // Middle button drag: zoom
   cv.addEventListener('wheel',e=>{gCam.position.z=Math.max(1.4,Math.min(5.0,gCam.position.z+e.deltaY*.003));e.preventDefault();gDirty=true;},{passive:false});
   if(!gAnim){gAnim=true;(function loop(){
     requestAnimationFrame(loop);
@@ -978,6 +1156,24 @@ function initGlobe(){
 }
 
 function buildGlobeTex(){
+  // Try loading the locally-downloaded high-res NASA/Three.js earth texture first
+  const loader=new THREE.TextureLoader();
+  loader.load('static/earth_2048.jpg',
+    tex=>{
+      tex.anisotropy=gR?.capabilities?.getMaxAnisotropy()||8;
+      const mat=new THREE.MeshPhongMaterial({
+        map:tex,
+        specular:new THREE.Color(.10,.12,.22),shininess:22,
+        emissive:new THREE.Color(.02,.04,.06)
+      });
+      if(gMesh){gSc.remove(gMesh);gMesh.geometry?.dispose();gMesh.material?.dispose();}
+      gMesh=new THREE.Mesh(new THREE.SphereGeometry(1,128,64),mat);gSc.add(gMesh);gDirty=true;
+    },
+    undefined,
+    ()=>buildGlobeTexCanvas() // fallback to canvas on error
+  );
+}
+function buildGlobeTexCanvas(){
   const sz=4096,hs=sz/2;
   const cv=document.createElement('canvas');cv.width=sz;cv.height=hs;
   const ctx=cv.getContext('2d');
@@ -1076,7 +1272,7 @@ function buildGlobeTex(){
   gDirty=true;
 }
 
-function toggleGlobeStyle(){S.globeStyle=S.globeStyle==='dark'?'natural':'dark';$('gs-lbl').textContent=S.globeStyle==='dark'?'DARK':'NATURAL';buildGlobeTex();}
+function toggleGlobeStyle(){S.globeStyle=S.globeStyle==='dark'?'natural':'dark';$('gs-lbl').textContent=S.globeStyle==='dark'?'DARK':'NATURAL';buildGlobeTexCanvas();}
 function ll2v(lat,lon,r){const phi=(90-lat)*Math.PI/180,th=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(th),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(th));}
 function mkSpr(text,color){
   const cv=document.createElement('canvas');cv.width=256;cv.height=40;
@@ -1147,10 +1343,11 @@ function initDragHandles(){
   document.addEventListener('mousemove',e=>{
     if(!which)return;
     const{el,prop,inv}=which;
-    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(80,Math.min(window.innerWidth*.55,sW+dx))+'px';}
+    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(80,Math.min(window.innerWidth*.65,sW+dx))+'px';}
     else{const dy=sY-e.clientY;$(el).style.height=Math.max(60,Math.min(450,sW+dy))+'px';}
+    if(which?.el==='pg')resizeGlobe();
   });
-  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();}});
+  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();resizeGlobe();}});
 }
 
 // ── INIT ──

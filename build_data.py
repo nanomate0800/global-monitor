@@ -22,7 +22,7 @@ GEO_DIR  = OUT_BASE / 'geo'
 for d in [OUT_BASE, CORR_DIR, FC_DIR, GEO_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-COUNTRIES   = ['USA','KEN','BRA','DEU','CHN']
+COUNTRIES   = ['USA','KEN','BRA','DEU','CHN','RUS','SGP','IND','JPN','IDN']
 HIST_START  = 2000
 HIST_END    = 2023
 FC_HORIZON  = 15
@@ -107,8 +107,16 @@ print(f"  {total} series → app/static/data/forecasts/")
 # ── STEP 2: WINDOWED CORRELATIONS ──
 print("\n[2/5] Windowed correlations...")
 
+def first_diff(vals):
+    """Year-over-year first differences — removes trend-based spurious correlations."""
+    return [vals[i]-vals[i-1] for i in range(1,len(vals))]
+
 def compute_corr(data_dict, y1, y2, min_obs=5):
-    """data_dict: {indicator_name: [(year,value),...]}"""
+    """
+    data_dict: {indicator_name: [(year,value),...]}
+    Uses first-differenced values (ΔY) to avoid spurious trend correlations
+    e.g. Kenya population vs China internet use both trend up → spuriously correlated on levels.
+    """
     keys = list(data_dict.keys())
     edges = []
     eid   = 0
@@ -119,14 +127,17 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
             db = {yr:v for yr,v in data_dict[b] if y1<=yr<=y2}
             common = sorted(set(da)&set(db))
             if len(common) < min_obs: continue
-            xs = [da[y] for y in common]
-            ys = [db[y] for y in common]
+            xs_raw = [da[y] for y in common]
+            ys_raw = [db[y] for y in common]
+            # Apply first differencing (removes shared time trend)
+            xs = first_diff(xs_raw)
+            ys = first_diff(ys_raw)
+            if len(xs) < max(4, min_obs-1): continue
             mx = sum(xs)/len(xs); my = sum(ys)/len(ys)
             num = sum((x-mx)*(y-my) for x,y in zip(xs,ys))
             den = (sum((x-mx)**2 for x in xs)*sum((y-my)**2 for y in ys))**0.5
             if den == 0: continue
             r = max(-1,min(1, num/den))
-            if abs(r) < 0.0: continue  # keep all
             edges.append({'id':eid,'source':a,'target':b,
                           'correlation':round(r,3),'strength':round(abs(r),3),
                           'sign':'pos' if r>0 else 'neg'})
@@ -184,8 +195,9 @@ for iso_a, iso_b in combinations(COUNTRIES,2):
             sb = sub_b[sub_b['indicator_name']==ind_b].set_index('year')['value']
             common = sa.index.intersection(sb.index)
             if len(common)<8: continue
-            r = sa[common].corr(sb[common])
-            if np.isnan(r) or abs(r)<0.72: continue
+            # First-difference both series to remove shared trends
+            r = sa[common].diff().dropna().corr(sb[common].diff().dropna())
+            if np.isnan(r) or abs(r)<0.55: continue  # lower bar since diff reduces spurious high-r
             cat_a = cat_map.get(ind_a,'Other')
             cat_b = cat_map.get(ind_b,'Other')
             arc   = 'climate_economic' if 'Climate' in [cat_a,cat_b] else \
@@ -315,11 +327,16 @@ meta = {
     'risk_signals': risk_signals,
     'node_meta':    node_meta,
     'country_meta': {
-        'USA':{'name':'United States','lat':37.09, 'lon':-95.71,'color':'#c8f060'},
-        'KEN':{'name':'Kenya',        'lat':-0.02, 'lon': 37.91,'color':'#60c8f0'},
-        'BRA':{'name':'Brazil',       'lat':-14.24,'lon':-51.93,'color':'#f060c8'},
-        'DEU':{'name':'Germany',      'lat': 51.17,'lon': 10.45,'color':'#f0a060'},
-        'CHN':{'name':'China',        'lat': 35.86,'lon':104.19,'color':'#a060f0'},
+        'USA':{'name':'United States','lat':37.09, 'lon':-95.71, 'color':'#c8f060'},
+        'KEN':{'name':'Kenya',        'lat':-0.02, 'lon': 37.91, 'color':'#60c8f0'},
+        'BRA':{'name':'Brazil',       'lat':-14.24,'lon':-51.93, 'color':'#f060c8'},
+        'DEU':{'name':'Germany',      'lat': 51.17,'lon': 10.45, 'color':'#f0a060'},
+        'CHN':{'name':'China',        'lat': 35.86,'lon':104.19, 'color':'#a060f0'},
+        'RUS':{'name':'Russia',       'lat': 61.52,'lon': 105.32,'color':'#f04040'},
+        'SGP':{'name':'Singapore',    'lat':  1.35,'lon': 103.82,'color':'#40f0d0'},
+        'IND':{'name':'India',        'lat': 20.59,'lon':  78.96,'color':'#f0c040'},
+        'JPN':{'name':'Japan',        'lat': 36.20,'lon': 138.25,'color':'#ff8080'},
+        'IDN':{'name':'Indonesia',    'lat':-0.79, 'lon': 113.92,'color':'#80ff80'},
     }
 }
 

@@ -12,22 +12,33 @@ DB_PATH = BASE / 'db' / 'database.db'
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 CITIES = [
-    {'city':'New York',       'iso3':'USA','lat':40.71, 'lon':-74.01},
-    {'city':'Los Angeles',    'iso3':'USA','lat':34.05, 'lon':-118.25},
-    {'city':'Nairobi',        'iso3':'KEN','lat':-1.29, 'lon':36.82},
-    {'city':'Mombasa',        'iso3':'KEN','lat':-4.05, 'lon':39.67},
-    {'city':'Sao Paulo',      'iso3':'BRA','lat':-23.55,'lon':-46.63},
-    {'city':'Rio de Janeiro', 'iso3':'BRA','lat':-22.91,'lon':-43.17},
-    {'city':'Berlin',         'iso3':'DEU','lat':52.52, 'lon':13.41},
-    {'city':'Munich',         'iso3':'DEU','lat':48.14, 'lon':11.58},
-    {'city':'Beijing',        'iso3':'CHN','lat':39.91, 'lon':116.39},
-    {'city':'Shanghai',       'iso3':'CHN','lat':31.23, 'lon':121.47},
-    {'city':'Guangzhou',      'iso3':'CHN','lat':23.12, 'lon':113.25},
-    {'city':'Hamburg',        'iso3':'DEU','lat':53.55, 'lon':10.00},
+    {'city':'New York',        'iso3':'USA','lat':40.71, 'lon':-74.01},
+    {'city':'Los Angeles',     'iso3':'USA','lat':34.05, 'lon':-118.25},
+    {'city':'Chicago',         'iso3':'USA','lat':41.88, 'lon':-87.63},
+    {'city':'Nairobi',         'iso3':'KEN','lat':-1.29, 'lon':36.82},
+    {'city':'Mombasa',         'iso3':'KEN','lat':-4.05, 'lon':39.67},
+    {'city':'Sao Paulo',       'iso3':'BRA','lat':-23.55,'lon':-46.63},
+    {'city':'Rio de Janeiro',  'iso3':'BRA','lat':-22.91,'lon':-43.17},
+    {'city':'Berlin',          'iso3':'DEU','lat':52.52, 'lon':13.41},
+    {'city':'Munich',          'iso3':'DEU','lat':48.14, 'lon':11.58},
+    {'city':'Hamburg',         'iso3':'DEU','lat':53.55, 'lon':10.00},
+    {'city':'Beijing',         'iso3':'CHN','lat':39.91, 'lon':116.39},
+    {'city':'Shanghai',        'iso3':'CHN','lat':31.23, 'lon':121.47},
+    {'city':'Guangzhou',       'iso3':'CHN','lat':23.12, 'lon':113.25},
+    {'city':'Moscow',          'iso3':'RUS','lat':55.75, 'lon':37.62},
+    {'city':'Saint Petersburg','iso3':'RUS','lat':59.95, 'lon':30.32},
+    {'city':'Singapore',       'iso3':'SGP','lat': 1.35, 'lon':103.82},
+    {'city':'Mumbai',          'iso3':'IND','lat':19.08, 'lon':72.88},
+    {'city':'Delhi',           'iso3':'IND','lat':28.70, 'lon':77.10},
+    {'city':'Bangalore',       'iso3':'IND','lat':12.97, 'lon':77.59},
+    {'city':'Tokyo',           'iso3':'JPN','lat':35.69, 'lon':139.69},
+    {'city':'Osaka',           'iso3':'JPN','lat':34.69, 'lon':135.50},
+    {'city':'Jakarta',         'iso3':'IDN','lat':-6.21, 'lon':106.85},
+    {'city':'Surabaya',        'iso3':'IDN','lat':-7.25, 'lon':112.75},
 ]
 COUNTRY_NAMES = {
-    'USA':'United States', 'KEN':'Kenya',
-    'BRA':'Brazil',        'DEU':'Germany', 'CHN':'China',
+    'USA':'United States','KEN':'Kenya','BRA':'Brazil','DEU':'Germany','CHN':'China',
+    'RUS':'Russia','SGP':'Singapore','IND':'India','JPN':'Japan','IDN':'Indonesia',
 }
 
 def create_schema(conn):
