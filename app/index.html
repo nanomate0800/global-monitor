@@ -83,7 +83,7 @@ input[type=range].yslider{width:60px;height:2px;accent-color:var(--ph);cursor:po
 .dh::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:32px;background:var(--b3);border-radius:1px;}
 .dhh{height:4px;background:var(--b1);cursor:row-resize;flex-shrink:0;transition:background .15s;}
 .dhh:hover,.dhh.active{background:var(--b3);}
-#ccol{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;}
+#ccol{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;}
 #pn{flex:1;position:relative;min-height:0;background:var(--s1);}
 #nsvg{width:100%;height:100%;display:block;}
 .plabel{position:absolute;top:10px;left:12px;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);pointer-events:none;z-index:3;}
@@ -124,6 +124,45 @@ tr.hi td{color:var(--tx);}
 .loader-fill{height:100%;background:var(--ph);border-radius:1px;transition:width .3s;}
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+/* ── SEARCH BAR ── */
+.ns-bar{display:flex;align-items:center;gap:5px;padding:6px 10px 5px;border-bottom:1px solid var(--b1);flex-shrink:0;}
+.ns-input{flex:1;background:var(--s2);border:1px solid var(--b2);color:var(--tx);font-family:'DM Mono',monospace;font-size:9px;padding:4px 7px;border-radius:2px;outline:none;min-width:0;}
+.ns-input:focus{border-color:var(--mu2);}
+.ns-clr{font-size:10px;color:var(--mu);cursor:pointer;padding:2px;}
+.ns-clr:hover{color:var(--mu2);}
+/* ── HIERARCHY TREE ── */
+.cat-group{border-bottom:1px solid var(--b1);}
+.cat-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;user-select:none;transition:background .1s;}
+.cat-hdr:hover{background:var(--s2);}
+.cat-icon{font-size:7px;color:var(--mu);transition:transform .15s;width:8px;flex-shrink:0;}
+.cat-icon.open{transform:rotate(90deg);}
+.cat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.cat-name{flex:1;font-size:8px;color:var(--mu2);letter-spacing:.08em;text-transform:uppercase;}
+.cat-cnt{font-size:7px;color:var(--mu);}
+.cat-body{display:none;padding:2px 0 4px 0;}
+.cat-body.open{display:block;}
+.subcat-hdr{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 22px;cursor:pointer;user-select:none;}
+.subcat-hdr:hover{background:var(--s2);}
+.subcat-icon{font-size:6px;color:var(--mu);width:7px;flex-shrink:0;transition:transform .12s;}
+.subcat-icon.open{transform:rotate(90deg);}
+.subcat-name{font-size:7px;color:var(--mu);letter-spacing:.06em;}
+.subcat-cnt{font-size:7px;color:var(--mu);margin-left:auto;}
+.subcat-body{display:none;}
+.subcat-body.open{display:block;}
+/* ── MULTISELECT COUNTRY PICKER ── */
+.mc-option{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;border-bottom:1px solid var(--b1);font-size:9px;color:var(--mu2);transition:background .1s;}
+.mc-option:last-child{border-bottom:none;}
+.mc-option:hover{background:var(--s3);color:var(--tx);}
+.mc-check{width:12px;height:12px;border:1px solid var(--b3);border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#000;transition:all .1s;}
+.mc-check.on{background:var(--ph);border-color:var(--ph);}
+.c-dots{display:flex;gap:2px;align-items:center;flex-wrap:wrap;max-width:80px;}
+.c-dot-sm{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+/* ── FIX TABLE OVERFLOW ── */
+#pb{min-width:0;}
+#nls{display:flex;flex-direction:column;padding:0;overflow:hidden;}
+#nls > .stl{padding:8px 12px 4px;flex-shrink:0;}
+#nls > .thr-row{padding:0 12px;flex-shrink:0;}
+#ntree{flex:1;overflow-y:auto;overflow-x:hidden;}
 </style>
 </head>
 <body>
@@ -150,9 +189,11 @@ tr.hi td{color:var(--tx);}
     <span class="nav-sep" id="nav-sep1" style="display:none">›</span>
     <div class="nav-seg" id="ns-country" style="display:none">
       <div class="nav-btn" id="nb-country" onclick="toggleNav('nd-country')">
-        <span id="country-label">USA</span><span class="nav-caret">▾</span>
+        <div class="c-dots" id="country-dots"></div>
+        <span id="country-label" style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span class="nav-caret">▾</span>
       </div>
-      <div class="nav-dropdown" id="nd-country"></div>
+      <div class="nav-dropdown" id="nd-country" style="min-width:220px"></div>
     </div>
   </div>
   <div class="hyear">
@@ -181,7 +222,11 @@ tr.hi td{color:var(--tx);}
         <input type="range" id="thr" min="0.0" max="0.99" step="0.01" value="0.45" oninput="onThr(this)">
         <span class="thr-val" id="thrv">0.45</span>
       </div>
-      <div id="nlist"></div>
+      <div class="ns-bar">
+        <input class="ns-input" id="nsearch" placeholder="Search indicators…" oninput="buildNodeList()">
+        <span class="ns-clr" onclick="$('nsearch').value='';buildNodeList()">✕</span>
+      </div>
+      <div id="ntree"></div>
     </div>
     <div class="sec" id="node-detail">
       <div class="nd-back" onclick="clearSel()">← nodes</div>
@@ -250,10 +295,22 @@ const CAT={Economy:'#4a7fb5',Health:'#b54a6a',Education:'#b58a4a',Energy:'#4ab56
 const ARC={climate_economic:'#f0a030',economic_economic:'#4a7fb5',social_social:'#7a4ab5'};
 // Country centroid positions for clustering (normalized -1 to 1 axes)
 const CTRD={'USA':[-0.70,-0.38],'DEU':[0.32,-0.72],'CHN':[0.74,0.22],'BRA':[0.02,0.80],'KEN':[-0.62,0.56]};
+// Full country names
+const CNAME={'USA':'United States','DEU':'Germany','CHN':'China','BRA':'Brazil','KEN':'Kenya'};
+// Super-category groupings (L1 → L2 categories)
+const SCAT={
+  Economic:['Economy','Trade','SovereignDebt','Governance'],
+  Social:['Social','Health','Education','Demographics','Demographic'],
+  Environmental:['Environment','Climate','Energy'],
+  Other:['Other']
+};
+const SCAT_COLOR={Economic:'#4a7fb5',Social:'#9a7ab5',Environmental:'#4ab56a',Other:'#4a4a5a'};
 
-const S={level:'global',country:'USA',mode:'explore',thr:.45,yS:2000,yE:2023,
+const S={level:'global',countries:['USA'],mode:'explore',thr:.45,yS:2000,yE:2023,
   severed:new Set(),hyp:[],selNode:null,addSrc:null,gNodes:[],
   meta:null,corr:{},fc:{},cross:[],globeStyle:'dark'};
+// Backwards compat getter
+Object.defineProperty(S,'country',{get(){return S.countries[0]||'USA'},set(v){S.countries=[v];}});
 
 const $=id=>document.getElementById(id);
 const tip=$('tip');
@@ -299,32 +356,60 @@ document.addEventListener('click',e=>{if(!e.target.closest('.nav-seg'))document.
 function buildCountryDD(){
   const dd=$('nd-country');dd.innerHTML='';
   Object.entries(S.meta.country_meta).forEach(([iso3,m])=>{
-    const d=document.createElement('div');d.className='nav-option';
-    d.innerHTML=`<span class="odot" style="background:${m.color}"></span>${m.name}`;
-    d.onclick=()=>{setCountry(iso3);document.querySelectorAll('.nav-dropdown').forEach(d=>d.classList.remove('open'));};
+    const on=S.countries.includes(iso3);
+    const d=document.createElement('div');d.className='mc-option';
+    d.innerHTML=`<div class="mc-check${on?' on':''}">${on?'✓':''}</div><span class="odot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${m.color};flex-shrink:0"></span><span>${m.name||CNAME[iso3]||iso3}</span>`;
+    d.onclick=e=>{e.stopPropagation();toggleCountry(iso3);};
     dd.appendChild(d);
   });
+  refreshCountryLabel();
+}
+function toggleCountry(iso3){
+  const i=S.countries.indexOf(iso3);
+  if(i>=0){if(S.countries.length>1)S.countries.splice(i,1);}
+  else S.countries.push(iso3);
+  buildCountryDD();
+  applyCountryChange();
+}
+function refreshCountryLabel(){
+  if(!S.meta)return;
+  const dots=$('country-dots');const lbl=$('country-label');
+  dots.innerHTML=S.countries.map(iso3=>`<span class="c-dot-sm" style="background:${S.meta.country_meta[iso3]?.color||'#888'}"></span>`).join('');
+  if(S.countries.length===1){lbl.textContent=S.meta.country_meta[S.countries[0]]?.name||CNAME[S.countries[0]]||S.countries[0];}
+  else{lbl.textContent=`${S.countries.length} countries`;}
+}
+async function applyCountryChange(){
+  S.severed.clear();S.hyp=[];S.selNode=null;
+  refreshCountryLabel();
+  for(const iso3 of S.countries) await loadCorr(iso3,S.yS,S.yE);
+  const netLabels={country:`COUNTRY — ${S.countries.map(c=>CNAME[c]||c).join(', ')}`,intercity:`INTERCITY — ${CNAME[S.country]||S.country}`};
+  $('net-label').textContent=netLabels[S.level]||$('net-label').textContent;
+  clearNodeDet();updateMeta();buildNodeList();buildRiskGrid();await renderNet();updateSevList();
+  if(S.level==='intercity')globeCityMode();else globeCountryMode();
 }
 
 async function setLevel(lv){
   S.level=lv;S.severed.clear();S.hyp=[];S.selNode=null;S.addSrc=null;
-  const lvLabels={global:'GLOBAL',cross:'CROSS-COUNTRY',country:S.country,intercity:'INTERCITY'};
+  const cNames=S.countries.map(c=>CNAME[c]||c).join(', ');
+  const lvLabels={global:'GLOBAL',cross:'CROSS-COUNTRY',country:S.countries.length===1?cNames:'MULTI',intercity:'INTERCITY'};
   $('level-label').textContent=lvLabels[lv]||lv.toUpperCase();
   const showC=lv==='country'||lv==='intercity';
   $('nav-sep1').style.display=showC?'flex':'none';
   $('ns-country').style.display=showC?'flex':'none';
-  const netLabels={global:'GLOBAL NETWORK',cross:'CROSS-COUNTRY CORRELATIONS',country:`COUNTRY — ${S.country}`,intercity:`INTERCITY — ${S.country}`};
+  const netLabels={global:'GLOBAL NETWORK',cross:'CROSS-COUNTRY CORRELATIONS',
+    country:`COUNTRY — ${cNames}`,intercity:`INTERCITY — ${CNAME[S.country]||S.country}`};
   $('net-label').textContent=netLabels[lv]||lv;
   document.querySelectorAll('.nav-dropdown').forEach(d=>d.classList.remove('open'));
-  if(lv==='country'||lv==='intercity') await loadCorr(S.country,S.yS,S.yE);
+  if(lv==='country'||lv==='intercity'){for(const iso3 of S.countries) await loadCorr(iso3,S.yS,S.yE);}
+  refreshCountryLabel();
   clearNodeDet();updateMeta();buildNodeList();buildRiskGrid();await renderNet();updateSevList();
   if(lv==='intercity')globeCityMode();else globeCountryMode();
 }
 
 async function setCountry(iso3){
-  S.country=iso3;S.severed.clear();S.hyp=[];S.selNode=null;
-  $('country-label').textContent=iso3;
-  const netLabels={country:`COUNTRY — ${iso3}`,intercity:`INTERCITY — ${iso3}`};
+  S.countries=[iso3];
+  refreshCountryLabel();
+  const netLabels={country:`COUNTRY — ${CNAME[iso3]||iso3}`,intercity:`INTERCITY — ${CNAME[iso3]||iso3}`};
   $('net-label').textContent=netLabels[S.level]||$('net-label').textContent;
   await loadCorr(iso3,S.yS,S.yE);
   clearNodeDet();updateMeta();buildNodeList();buildRiskGrid();await renderNet();updateSevList();
@@ -374,7 +459,17 @@ function getNodes(){
     });
     return all;
   }
-  if(S.level==='country') return S.meta.node_meta[S.country]||[];
+  if(S.level==='country'){
+    if(S.countries.length===1) return S.meta.node_meta[S.country]||[];
+    // Multi-country: combine nodes with prefix tags (same as global but filtered)
+    const all=[];
+    S.countries.forEach(iso3=>{
+      (S.meta.node_meta[iso3]||[]).forEach(n=>{
+        all.push({...n,id:`${iso3}::${n.id}`,label:n.id,country:iso3});
+      });
+    });
+    return all;
+  }
   if(S.level==='intercity'){
     // Cities of the selected country as nodes
     const nodes=Object.entries(S.meta.cities)
@@ -426,8 +521,22 @@ function getCurEdges(){
     return edges.slice(0,500);
   }
   if(S.level==='country'){
-    const key=`${S.country}_${S.yS}_${S.yE}`;
-    return(S.corr[key]||[]).filter(e=>e.strength>=S.thr);
+    if(S.countries.length===1){
+      const key=`${S.country}_${S.yS}_${S.yE}`;
+      return(S.corr[key]||[]).filter(e=>e.strength>=S.thr);
+    }
+    // Multi-country: within-country + cross-country between selected
+    const edges=[];
+    S.countries.forEach(iso3=>{
+      const key=`${iso3}_${S.yS}_${S.yE}`;
+      (S.corr[key]||[]).filter(e=>e.strength>=S.thr).forEach(e=>{
+        edges.push({...e,id:`${iso3}_${e.id}`,source:`${iso3}::${e.source}`,target:`${iso3}::${e.target}`,country:iso3,within:true});
+      });
+    });
+    S.cross.filter(e=>e.strength>=S.thr&&S.countries.includes(e.country_a)&&S.countries.includes(e.country_b)).forEach((e,i)=>{
+      edges.push({...e,id:`xc_${i}`,source:`${e.country_a}::${e.indicator_a}`,target:`${e.country_b}::${e.indicator_b}`,cross:true});
+    });
+    return edges.slice(0,500);
   }
   if(S.level==='intercity'){
     return(S.meta.city_intra||[])
@@ -445,23 +554,95 @@ function getCurEdges(){
 }
 function getAE(){return[...getCurEdges().filter(e=>!S.severed.has(e.id)),...S.hyp];}
 
-// ── NODE LIST ──
+// ── NODE LIST (Hierarchical tree with search) ──
+const _treeOpen={};  // persists open/close state: 'SCAT/CAT' → bool
 function buildNodeList(){
   if(!S.meta)return;
   const nodes=getNodes();const ae=getAE();
-  const list=$('nlist');list.innerHTML='';
-  [...nodes].sort((a,b)=>b.centrality-a.centrality).slice(0,40).forEach(n=>{
-    const lbl=n.label||n.id;const conn=ae.some(e=>nid(e.source)===n.id||nid(e.target)===n.id);
-    const d=document.createElement('div');d.className='nitem'+(S.selNode?.id===n.id?' on':'');
-    const ctryDot=n.country?`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${S.meta.country_meta[n.country]?.color||'#888'};margin-right:3px;vertical-align:middle;opacity:.7"></span>`:'';
-    d.innerHTML=`<div class="ndot" style="background:${CAT[n.category]||'#555'};${!conn?'opacity:.3':''}"></div><span class="nname" title="${lbl}">${ctryDot}${lbl.length>22?lbl.substring(0,20)+'…':lbl}</span><span class="ndeg">${n.degree}</span>`;
-    d.onclick=()=>selectNode(n);
-    list.appendChild(d);
+  const q=($('nsearch')?.value||'').toLowerCase().trim();
+  const tree=$('ntree');if(!tree)return;tree.innerHTML='';
+
+  // Group nodes into super-cat → category → list
+  const buckets={};  // supercat → cat → [node]
+  nodes.forEach(n=>{
+    const cat=n.category||'Other';
+    const sup=Object.keys(SCAT).find(k=>SCAT[k].includes(cat))||'Other';
+    if(!buckets[sup])buckets[sup]={}; if(!buckets[sup][cat])buckets[sup][cat]=[];
+    buckets[sup][cat].push(n);
+  });
+
+  // Filter by search
+  const filteredBuckets={};
+  Object.entries(buckets).forEach(([sup,cats])=>{
+    Object.entries(cats).forEach(([cat,ns])=>{
+      const filtered=q?ns.filter(n=>(n.label||n.id).toLowerCase().includes(q)):ns;
+      if(!filtered.length)return;
+      if(!filteredBuckets[sup])filteredBuckets[sup]={};
+      filteredBuckets[sup][cat]=filtered.sort((a,b)=>b.centrality-a.centrality);
+    });
+  });
+
+  const supOrder=['Economic','Social','Environmental','Other'];
+  (q?Object.keys(filteredBuckets):supOrder.filter(s=>filteredBuckets[s])).forEach(sup=>{
+    const cats=filteredBuckets[sup];if(!cats)return;
+    const totalN=Object.values(cats).reduce((a,b)=>a+b.length,0);
+    const supKey=`sup_${sup}`;
+    const supOpen=_treeOpen[supKey]!=null?_treeOpen[supKey]:(q||true);
+    const grp=document.createElement('div');grp.className='cat-group';
+    const hdr=document.createElement('div');hdr.className='cat-hdr';
+    hdr.innerHTML=`<span class="cat-icon${supOpen?' open':''}">▶</span><span class="cat-dot" style="background:${SCAT_COLOR[sup]||'#555'}"></span><span class="cat-name">${sup}</span><span class="cat-cnt">${totalN}</span>`;
+    const body=document.createElement('div');body.className='cat-body'+(supOpen?' open':'');
+    hdr.onclick=()=>{const o=body.classList.toggle('open');hdr.querySelector('.cat-icon').classList.toggle('open',o);_treeOpen[supKey]=o;};
+    grp.appendChild(hdr);
+
+    Object.entries(cats).forEach(([cat,ns])=>{
+      const catKey=`cat_${cat}`;
+      const catOpen=_treeOpen[catKey]!=null?_treeOpen[catKey]:(q||false);
+      const sub=document.createElement('div');
+      const shdr=document.createElement('div');shdr.className='subcat-hdr';
+      shdr.innerHTML=`<span class="subcat-icon${catOpen?' open':''}">▶</span><span class="ndot" style="background:${CAT[cat]||'#555'};width:5px;height:5px;border-radius:50%;flex-shrink:0"></span><span class="subcat-name">${cat}</span><span class="subcat-cnt">${ns.length}</span>`;
+      const sbody=document.createElement('div');sbody.className='subcat-body'+(catOpen?' open':'');
+      shdr.onclick=e=>{e.stopPropagation();const o=sbody.classList.toggle('open');shdr.querySelector('.subcat-icon').classList.toggle('open',o);_treeOpen[catKey]=o;};
+      ns.forEach(n=>{
+        const conn=ae.some(e=>nid(e.source)===n.id||nid(e.target)===n.id);
+        const lbl=n.label||n.id;
+        const item=document.createElement('div');item.className='nitem'+(S.selNode?.id===n.id?' on':'');
+        item.style.paddingLeft='30px';
+        const ctryDot=n.country?`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${S.meta.country_meta[n.country]?.color||'#888'};margin-right:3px;vertical-align:middle;opacity:.8;flex-shrink:0"></span>`:'';
+        const dispLbl=lbl.length>24?lbl.substring(0,22)+'…':lbl;
+        item.innerHTML=`<div class="ndot" style="background:${CAT[cat]||'#555'};${!conn?'opacity:.3':''}"></div><span class="nname" title="${lbl}">${ctryDot}${dispLbl}</span><span class="ndeg">${n.degree}</span>`;
+        item.onclick=()=>selectNode(n);
+        sbody.appendChild(item);
+      });
+      sub.appendChild(shdr);sub.appendChild(sbody);
+      body.appendChild(sub);
+    });
+    grp.appendChild(body);tree.appendChild(grp);
   });
 }
 
-function selectNode(n){S.selNode=n;renderNet();showNodeDetail(n);}
-function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();renderNet();}
+function selectNode(n){
+  S.selNode=n;renderNet();showNodeDetail(n);
+  // Auto-zoom to the node's cluster after a short tick
+  setTimeout(()=>zoomToNode(n),50);
+}
+function zoomToNode(n){
+  if(!netZoom||!n)return;
+  const svgEl=$('nsvg'),W=svgEl.clientWidth,H=svgEl.clientHeight;
+  // Collect connected nodes
+  const ae=getAE();const connIds=new Set([n.id]);
+  ae.forEach(e=>{const s=nid(e.source),t=nid(e.target);if(s===n.id||t===n.id){connIds.add(s);connIds.add(t);}});
+  const pts=S.gNodes.filter(nd=>connIds.has(nd.id)&&isFinite(nd.x)&&isFinite(nd.y));
+  if(!pts.length)return;
+  const xs=pts.map(d=>d.x),ys=pts.map(d=>d.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const pad=120,bw=x1-x0+pad*2,bh=y1-y0+pad*2;
+  const sc=Math.min(W/bw,H/bh,2.5);
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  d3.select('#nsvg').transition().duration(600)
+    .call(netZoom.transform,d3.zoomIdentity.translate(W/2-cx*sc,H/2-cy*sc).scale(sc));
+}
+function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();autoZoom();renderNet();}
 function clearNodeDet(){$('node-detail').style.display='none';$('nls').style.display='block';}
 function showNodeDetail(n){
   $('nls').style.display='none';$('node-detail').style.display='block';
@@ -684,31 +865,32 @@ function renderNet(){
     .attr('pointer-events','none')
     .text(d=>{const l=d.label||stripPfx(d.id);return l.length>26?l.substring(0,24)+'…':l;});
   nSel
-    .on('mouseover',(ev,d)=>{const lbl=d.label||d.id;const iso3=d.country||(S.level==='country'?S.country:'USA');const rv=r2(d.id,lbl,aeR,iso3);const cT=d.country?`<br>Country: <span style="color:${S.meta.country_meta[d.country]?.color}">${d.country}</span>`:'';showTip(`<b>${d.label||stripPfx(d.id)}</b><br>Category: ${d.category}${cT}<br>Connections: ${d.degree}<br>Centrality: ${(d.centrality*100).toFixed(0)}%${rv!==null?`<br>R²: <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);})
+    .on('mouseover',(ev,d)=>{const lbl=d.label||d.id;const iso3=d.country||(S.level==='country'?S.country:'USA');const rv=r2(d.id,lbl,aeR,iso3);const cMeta=S.meta.country_meta[d.country];const cT=d.country?`<br>Country: <span style="color:${cMeta?.color}">${cMeta?.name||CNAME[d.country]||d.country}</span>`:'';showTip(`<b>${d.label||stripPfx(d.id)}</b><br>Category: ${d.category}${cT}<br>Connections: ${d.degree}<br>Centrality: ${(d.centrality*100).toFixed(0)}%${rv!==null?`<br>R²: <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);})
     .on('mousemove',ev=>{const x=ev.clientX,y=ev.clientY,W2=window.innerWidth;tip.style.left=(x+16>W2-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';})
     .on('mouseout',hideTip)
     .on('click',(ev,d)=>{ev.stopPropagation();if(S.mode==='add'){if(!S.addSrc){S.addSrc=d;renderNet();}else if(S.addSrc.id!==d.id){const ex=getCurEdges().find(e=>{const s=nid(e.source),t=nid(e.target);return(s===S.addSrc.id&&t===d.id)||(s===d.id&&t===S.addSrc.id);});const cr=ex?ex.correlation:.5;S.hyp.push({source:S.addSrc.id,target:d.id,correlation:cr,strength:Math.abs(cr),sign:cr>0?'pos':'neg',hypothetical:true,id:'h'+Date.now()});S.addSrc=null;updateSevList();const ae2=getAE();renderImpact('after adding hypothetical',getNodes(),getCurEdges(),ae2);renderNet();}return;}selectNode(d);})
     .call(d3.drag().on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}).on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;}).on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
   if(sim)sim.stop();
-  // Cluster force: pulls each node toward its country centroid (global & cross views)
-  const needsCluster=S.level==='global'||S.level==='cross';
+  // Cluster force: pulls each node toward its country centroid (global, cross, multi-country views)
+  const needsCluster=S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1);
   const clusterForce=needsCluster?alpha=>{
     S.gNodes.forEach(n=>{
       const c=CTRD[n.country];if(!c)return;
-      const tx=W/2+c[0]*W*.30,ty=H/2+c[1]*H*.30;
-      n.vx+=(tx-n.x)*alpha*.18;
-      n.vy+=(ty-n.y)*alpha*.18;
+      // Spread to 45% of viewport — gives clear country cluster separation
+      const tx=W/2+c[0]*W*.45,ty=H/2+c[1]*H*.45;
+      n.vx+=(tx-n.x)*alpha*.32;
+      n.vy+=(ty-n.y)*alpha*.32;
     });
   }:null;
 
   sim=d3.forceSimulation(S.gNodes)
-    .alphaDecay(.035)
-    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>500-d.strength*270).strength(.15))
-    .force('charge',d3.forceManyBody().strength(-500))
-    .force('center',d3.forceCenter(W/2,H/2))
-    .force('collide',d3.forceCollide(d=>24+d.centrality*18))
-    .force('x',d3.forceX(W/2).strength(.012)).force('y',d3.forceY(H/2).strength(.012))
+    .alphaDecay(.028)
+    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>600-d.strength*300).strength(.10))
+    .force('charge',d3.forceManyBody().strength(needsCluster?-280:-500))
+    .force('center',d3.forceCenter(W/2,H/2).strength(.04))
+    .force('collide',d3.forceCollide(d=>28+d.centrality*20))
+    .force('x',d3.forceX(W/2).strength(.008)).force('y',d3.forceY(H/2).strength(.008))
     .force('cluster',clusterForce)
     .on('tick',()=>{
       eLines.attr('x1',d=>typeof d.source==='object'?d.source.x:0).attr('y1',d=>typeof d.source==='object'?d.source.y:0).attr('x2',d=>typeof d.target==='object'?d.target.x:0).attr('y2',d=>typeof d.target==='object'?d.target.y:0);
@@ -728,79 +910,184 @@ function renderNet(){
 }
 
 // ── GLOBE ──
-let gR,gSc,gCam,gArcs=[],gAnim=false,gMesh=null;
+let gR,gSc,gCam,gArcs=[],gAnim=false,gMesh=null,gRot=new THREE.Quaternion(),gLastDrag=0,gDirty=true;
 function initGlobe(){
   const cv=$('gcv'),W=cv.clientWidth||250,H=cv.clientHeight||400;
-  gR=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
-  gR.setSize(W,H);gR.setPixelRatio(Math.min(window.devicePixelRatio,2));gR.setClearColor(0,0);
-  gSc=new THREE.Scene();gCam=new THREE.PerspectiveCamera(42,W/H,.1,100);gCam.position.set(0,0,2.8);
-  gSc.add(new THREE.AmbientLight(0x334455,1.5));
-  const dl=new THREE.DirectionalLight(0x8899bb,.9);dl.position.set(4,3,5);gSc.add(dl);
-  const dl2=new THREE.DirectionalLight(0x334466,.4);dl2.position.set(-4,-2,-3);gSc.add(dl2);
+  gR=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true,powerPreference:'high-performance'});
+  gR.setSize(W,H);gR.setPixelRatio(Math.min(window.devicePixelRatio,1.5));gR.setClearColor(0x040608,1);
+  gSc=new THREE.Scene();gCam=new THREE.PerspectiveCamera(42,W/H,.1,100);gCam.position.set(0,0,2.7);
+  // Brighter lighting
+  gSc.add(new THREE.AmbientLight(0x6688aa,2.2));
+  const dl=new THREE.DirectionalLight(0xaabbdd,1.8);dl.position.set(5,3,4);gSc.add(dl);
+  const dl2=new THREE.DirectionalLight(0x4466aa,.7);dl2.position.set(-3,-2,-4);gSc.add(dl2);
+  const dl3=new THREE.DirectionalLight(0xffffff,.4);dl3.position.set(0,5,0);gSc.add(dl3);
   buildGlobeTex();
-  gSc.add(new THREE.Mesh(new THREE.SphereGeometry(1.002,36,18),new THREE.MeshBasicMaterial({color:0x1a2030,wireframe:true,transparent:true,opacity:.06})));
-  gSc.add(new THREE.Mesh(new THREE.SphereGeometry(1.09,32,32),new THREE.MeshPhongMaterial({color:0x0a1628,transparent:true,opacity:.07,side:THREE.FrontSide})));
+  // Wireframe grid overlay
+  gSc.add(new THREE.Mesh(new THREE.SphereGeometry(1.003,48,24),new THREE.MeshBasicMaterial({color:0x2a3855,wireframe:true,transparent:true,opacity:.04})));
+  // Atmosphere glow
+  gSc.add(new THREE.Mesh(new THREE.SphereGeometry(1.12,32,32),new THREE.MeshPhongMaterial({color:0x1a3060,transparent:true,opacity:.12,side:THREE.FrontSide})));
+  // Country markers
   Object.entries(S.meta.country_meta).forEach(([iso3,m])=>{
-    const p=ll2v(m.lat,m.lon,1.025);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(.03,.042,32),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color),transparent:true,opacity:.55,side:THREE.DoubleSide}));
+    const p=ll2v(m.lat,m.lon,1.026);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.035,.050,32),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color),transparent:true,opacity:.70,side:THREE.DoubleSide}));
     ring.position.copy(p);ring.lookAt(0,0,0);gSc.add(ring);
-    const dot=new THREE.Mesh(new THREE.SphereGeometry(.022,12,12),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color)}));
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(.026,12,12),new THREE.MeshBasicMaterial({color:new THREE.Color(m.color)}));
     dot.position.copy(p);gSc.add(dot);
-    const sp=mkSpr(iso3,m.color);sp.position.copy(p).multiplyScalar(1.14);gSc.add(sp);
+    const sp=mkSpr(m.name||CNAME[iso3]||iso3,m.color);sp.position.copy(p).multiplyScalar(1.16);gSc.add(sp);
   });
-  Object.entries(S.meta.cities).forEach(([city,c])=>{
-    const p=ll2v(c.lat,c.lon,1.018);
-    const dot=new THREE.Mesh(new THREE.SphereGeometry(.011,8,8),new THREE.MeshBasicMaterial({color:new THREE.Color(S.meta.country_meta[c.iso3]?.color||'#888'),transparent:true,opacity:.5}));
-    dot.position.copy(p);gSc.add(dot);
+  // City dots as efficient Points geometry
+  const cityPositions=[],cityColors=[];
+  Object.entries(S.meta.cities).forEach(([,c])=>{
+    const p=ll2v(c.lat,c.lon,1.020);
+    cityPositions.push(p.x,p.y,p.z);
+    const col=new THREE.Color(S.meta.country_meta[c.iso3]?.color||'#888888');
+    cityColors.push(col.r,col.g,col.b);
   });
-  let drag=false,prev={x:0,y:0},lastDrag=0;
-  cv.addEventListener('mousedown',e=>{drag=true;prev={x:e.clientX,y:e.clientY};lastDrag=Date.now();});
-  cv.addEventListener('mousemove',e=>{if(!drag)return;gSc.rotation.y+=(e.clientX-prev.x)*.005;gSc.rotation.x=Math.max(-.85,Math.min(.85,gSc.rotation.x+(e.clientY-prev.y)*.005));prev={x:e.clientX,y:e.clientY};lastDrag=Date.now();});
-  cv.addEventListener('mouseup',()=>drag=false);
-  cv.addEventListener('wheel',e=>{gCam.position.z=Math.max(1.3,Math.min(5.5,gCam.position.z+e.deltaY*.003));e.preventDefault();},{passive:false});
-  if(!gAnim){gAnim=true;(function loop(){requestAnimationFrame(loop);if(Date.now()-lastDrag>2000)gSc.rotation.y+=.001;gR.render(gSc,gCam);})();}
+  if(cityPositions.length){
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(cityPositions,3));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(cityColors,3));
+    const pts=new THREE.Points(geo,new THREE.PointsMaterial({size:.015,vertexColors:true,transparent:true,opacity:.7,sizeAttenuation:true}));
+    gSc.add(pts);
+  }
+  // Quaternion-based smooth rotation (no gimbal lock)
+  let drag=false,prev={x:0,y:0};
+  const _axisY=new THREE.Vector3(0,1,0),_axisX=new THREE.Vector3(1,0,0);
+  cv.addEventListener('mousedown',e=>{drag=true;prev={x:e.clientX,y:e.clientY};gLastDrag=Date.now();cv.style.cursor='grabbing';});
+  cv.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const dx=(e.clientX-prev.x)*.006,dy=(e.clientY-prev.y)*.006;
+    const qY=new THREE.Quaternion().setFromAxisAngle(_axisY,dx);
+    const qX=new THREE.Quaternion().setFromAxisAngle(_axisX,dy);
+    gRot.premultiply(qY).premultiply(qX);
+    gSc.quaternion.copy(gRot);
+    prev={x:e.clientX,y:e.clientY};gLastDrag=Date.now();gDirty=true;
+  });
+  cv.addEventListener('mouseup',()=>{drag=false;cv.style.cursor='grab';});
+  cv.addEventListener('mouseleave',()=>{drag=false;cv.style.cursor='grab';});
+  cv.addEventListener('wheel',e=>{gCam.position.z=Math.max(1.4,Math.min(5.0,gCam.position.z+e.deltaY*.003));e.preventDefault();gDirty=true;},{passive:false});
+  if(!gAnim){gAnim=true;(function loop(){
+    requestAnimationFrame(loop);
+    const idle=Date.now()-gLastDrag>1500;
+    if(idle){// slow auto-spin
+      const q=new THREE.Quaternion().setFromAxisAngle(_axisY,.0005);
+      gRot.premultiply(q);gSc.quaternion.copy(gRot);gDirty=true;
+    }
+    if(gDirty){gR.render(gSc,gCam);gDirty=false;}
+  })();}
 }
 
 function buildGlobeTex(){
-  const sz=2048,hs=sz/2;
+  const sz=4096,hs=sz/2;
   const cv=document.createElement('canvas');cv.width=sz;cv.height=hs;
   const ctx=cv.getContext('2d');
   const dark=S.globeStyle==='dark';
-  if(dark){ctx.fillStyle='#060810';ctx.fillRect(0,0,sz,hs);ctx.fillStyle='#14181f';}
-  else{const g=ctx.createLinearGradient(0,0,0,hs);g.addColorStop(0,'#1a3a5c');g.addColorStop(1,'#0d2035');ctx.fillStyle=g;ctx.fillRect(0,0,sz,hs);ctx.fillStyle='#2a4220';}
+
+  // Ocean: deep blue gradient with depth variation
+  if(dark){
+    const og=ctx.createLinearGradient(0,0,0,hs);
+    og.addColorStop(0,'#0a1428');og.addColorStop(.3,'#0d1c38');og.addColorStop(.5,'#0f2040');og.addColorStop(.7,'#0d1c38');og.addColorStop(1,'#0a1428');
+    ctx.fillStyle=og;ctx.fillRect(0,0,sz,hs);
+  } else {
+    const og=ctx.createLinearGradient(0,0,0,hs);
+    og.addColorStop(0,'#1e4060');og.addColorStop(.5,'#1a5080');og.addColorStop(1,'#0d2a40');
+    ctx.fillStyle=og;ctx.fillRect(0,0,sz,hs);
+  }
+
   function lxy(lon,lat){return[(lon+180)/360*sz,(90-lat)/180*hs];}
-  function poly(pts){ctx.beginPath();pts.forEach((p,i)=>{const[x,y]=lxy(p[0],p[1]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.closePath();ctx.fill();}
-  poly([[-168,71],[-140,70],[-120,68],[-100,73],[-85,73],[-65,63],[-52,47],[-52,44],[-66,44],[-70,40],[-76,34],[-80,25],[-88,16],[-84,8],[-77,8],[-76,10],[-84,10],[-90,16],[-110,22],[-117,32],[-124,37],[-124,49],[-130,54],[-140,58],[-152,60],[-168,63],[-168,71]]);
-  poly([[-18,76],[-14,72],[-20,68],[-44,60],[-52,61],[-64,68],[-54,82],[-18,83],[-18,76]]);
-  poly([[-80,12],[-62,12],[-50,5],[-36,-4],[-35,-8],[-38,-15],[-40,-22],[-44,-23],[-48,-28],[-52,-33],[-58,-38],[-62,-42],[-65,-55],[-68,-54],[-72,-48],[-75,-38],[-76,-30],[-78,-5],[-80,12]]);
-  poly([[-10,36],[5,36],[22,36],[30,38],[36,41],[42,42],[46,48],[32,60],[28,72],[18,72],[10,62],[2,52],[-4,44],[-10,38],[-10,36]]);
-  poly([[6,57],[12,56],[18,60],[26,70],[28,72],[20,70],[14,66],[8,62],[6,57]]);
-  poly([[-6,58],[2,58],[2,52],[-2,50],[-5,50],[-6,52],[-8,54],[-6,58]]);
-  poly([[-18,16],[0,16],[36,16],[42,12],[50,12],[52,2],[44,-12],[36,-22],[30,-30],[18,-34],[16,-30],[14,-22],[8,-6],[8,4],[0,4],[-18,16]]);
-  poly([[44,-12],[46,-14],[50,-24],[48,-26],[44,-22],[44,-12]]);
-  poly([[32,70],[60,70],[100,72],[140,72],[142,50],[136,36],[126,24],[108,10],[100,2],[96,4],[80,8],[70,22],[62,22],[50,28],[42,38],[32,42],[32,70]]);
-  poly([[100,20],[106,16],[108,2],[104,-2],[108,-8],[116,-2],[118,4],[122,24],[116,24],[108,20],[100,20]]);
-  poly([[130,32],[136,34],[140,38],[142,44],[140,44],[138,40],[132,32],[130,32]]);
-  poly([[114,-22],[124,-14],[130,-12],[136,-12],[140,-17],[148,-20],[152,-24],[152,-30],[150,-38],[144,-38],[140,-36],[134,-34],[128,-34],[116,-34],[114,-28],[114,-22]]);
-  poly([[108,6],[118,6],[118,-2],[108,2],[108,6]]);
-  poly([[96,6],[106,2],[106,-6],[96,-2],[96,6]]);
-  poly([[-24,64],[-14,64],[-14,66],[-24,66],[-24,64]]);
-  ctx.fillStyle=dark?'#1a1e28':'#d0d8e0';
-  poly([[-180,-70],[-120,-72],[-60,-70],[0,-68],[60,-70],[120,-72],[180,-70],[180,-90],[-180,-90]]);
-  ctx.fillStyle=dark?'#14181f':'#2a4220';
-  ctx.strokeStyle=dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.06)';ctx.lineWidth=.5;
+  function poly(pts,fill,stroke){
+    ctx.beginPath();pts.forEach((p,i)=>{const[x,y]=lxy(p[0],p[1]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+    ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.5;ctx.stroke();}
+  }
+
+  // Land base color with subtle elevation feel
+  const landBase=dark?'#1e2c1a':'#2e4a20';
+  const landEdge=dark?'rgba(100,140,80,0.15)':'rgba(160,200,120,0.20)';
+  const mountainTint=dark?'#2a3820':'#3a5a28';
+
+  // North America
+  poly([[-168,71],[-140,70],[-120,68],[-105,73],[-85,73],[-65,63],[-52,47],[-52,44],[-66,44],[-70,40],[-76,34],[-80,25],[-88,16],[-84,8],[-77,8],[-76,10],[-84,10],[-90,16],[-110,22],[-117,32],[-124,37],[-124,49],[-130,54],[-140,58],[-152,60],[-168,63],[-168,71]],landBase,landEdge);
+  // Greenland
+  poly([[-18,76],[-14,72],[-20,68],[-44,60],[-52,61],[-64,68],[-54,82],[-18,83],[-18,76]],dark?'#2a3040':'#c0ccd8',null);
+  // South America
+  poly([[-80,12],[-62,12],[-50,5],[-36,-4],[-35,-8],[-38,-15],[-40,-22],[-44,-23],[-48,-28],[-52,-33],[-58,-38],[-62,-42],[-65,-55],[-68,-54],[-72,-48],[-75,-38],[-76,-30],[-78,-5],[-80,12]],landBase,landEdge);
+  // Europe
+  poly([[-10,36],[5,36],[22,36],[30,38],[36,41],[42,42],[46,48],[32,60],[28,72],[18,72],[10,62],[2,52],[-4,44],[-10,38],[-10,36]],landBase,landEdge);
+  // Scandinavia
+  poly([[6,57],[12,56],[18,60],[26,70],[28,72],[20,70],[14,66],[8,62],[6,57]],landBase,null);
+  // British Isles
+  poly([[-6,58],[2,58],[2,52],[-2,50],[-5,50],[-6,52],[-8,54],[-6,58]],landBase,null);
+  // Africa
+  poly([[-18,16],[0,16],[36,16],[42,12],[50,12],[52,2],[44,-12],[36,-22],[30,-30],[18,-34],[16,-30],[14,-22],[8,-6],[8,4],[0,4],[-18,16]],landBase,landEdge);
+  // Madagascar
+  poly([[44,-12],[46,-14],[50,-24],[48,-26],[44,-22],[44,-12]],landBase,null);
+  // Asia
+  poly([[32,70],[60,70],[100,72],[140,72],[142,50],[136,36],[126,24],[108,10],[100,2],[96,4],[80,8],[70,22],[62,22],[50,28],[42,38],[32,42],[32,70]],landBase,landEdge);
+  // Indochina
+  poly([[100,20],[106,16],[108,2],[104,-2],[108,-8],[116,-2],[118,4],[122,24],[116,24],[108,20],[100,20]],landBase,null);
+  // Japan
+  poly([[130,32],[136,34],[140,38],[142,44],[140,44],[138,40],[132,32],[130,32]],landBase,null);
+  // Australia
+  poly([[114,-22],[124,-14],[130,-12],[136,-12],[140,-17],[148,-20],[152,-24],[152,-30],[150,-38],[144,-38],[140,-36],[134,-34],[128,-34],[116,-34],[114,-28],[114,-22]],landBase,landEdge);
+  // SE Asia islands
+  poly([[108,6],[118,6],[118,-2],[108,2],[108,6]],landBase,null);
+  poly([[96,6],[106,2],[106,-6],[96,-2],[96,6]],landBase,null);
+  // Iceland
+  poly([[-24,64],[-14,64],[-14,66],[-24,66],[-24,64]],dark?'#202832':'#a0b0c0',null);
+  // New Zealand
+  poly([[172,-34],[174,-36],[176,-38],[174,-40],[172,-38],[170,-36],[172,-34]],landBase,null);
+
+  // Antarctica
+  poly([[-180,-70],[-120,-72],[-60,-70],[0,-68],[60,-70],[120,-72],[180,-70],[180,-90],[-180,-90]],dark?'#283040':'#d8e4f0',null);
+
+  // Mountain ridges (Rockies, Andes, Alps, Himalayas, Urals)
+  const mtnColor=dark?'rgba(100,120,80,0.18)':'rgba(130,160,90,0.22)';
+  poly([[-115,48],[-118,44],[-122,40],[-120,36],[-118,38],[-112,42],[-108,46],[-115,48]],mtnColor,null);
+  poly([[-68,-12],[-70,-18],[-72,-28],[-70,-32],[-68,-28],[-66,-18],[-68,-12]],mtnColor,null);
+  poly([[8,44],[10,46],[14,46],[16,44],[10,42],[8,44]],mtnColor,null);
+  poly([[78,28],[82,30],[86,28],[84,26],[80,26],[78,28]],mtnColor,null);
+
+  // Lat/lon grid lines — subtle
+  ctx.strokeStyle=dark?'rgba(80,120,180,0.08)':'rgba(40,80,140,0.10)';
+  ctx.lineWidth=.8;
   [-60,-30,0,30,60].forEach(lat=>{const y=(90-lat)/180*hs;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(sz,y);ctx.stroke();});
-  [-120,-60,0,60,120].forEach(lon=>{const x=(lon+180)/360*sz;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,hs);ctx.stroke();});
-  if(!dark){const rg=ctx.createRadialGradient(sz/2,hs*.6,0,sz/2,hs*.6,sz*.4);rg.addColorStop(0,'rgba(20,50,80,0)');rg.addColorStop(1,'rgba(5,15,30,.25)');ctx.fillStyle=rg;ctx.fillRect(0,0,sz,hs);}
-  const tex=new THREE.CanvasTexture(cv);
-  const mat=new THREE.MeshPhongMaterial({map:tex,specular:dark?0x111122:0x223344,shininess:dark?5:12});
-  if(gMesh)gSc.remove(gMesh);
-  gMesh=new THREE.Mesh(new THREE.SphereGeometry(1,96,64),mat);gSc.add(gMesh);
+  [-150,-120,-90,-60,-30,0,30,60,90,120,150].forEach(lon=>{const x=(lon+180)/360*sz;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,hs);ctx.stroke();});
+  // Equator highlight
+  ctx.strokeStyle=dark?'rgba(80,160,200,0.14)':'rgba(60,140,200,0.18)';ctx.lineWidth=1.2;
+  const ey=(90-0)/180*hs;ctx.beginPath();ctx.moveTo(0,ey);ctx.lineTo(sz,ey);ctx.stroke();
+
+  // Ocean depth shimmer (equatorial band)
+  const osg=ctx.createLinearGradient(0,hs*.35,0,hs*.65);
+  osg.addColorStop(0,'rgba(0,0,0,0)');
+  osg.addColorStop(.5,dark?'rgba(20,60,120,0.10)':'rgba(30,80,160,0.08)');
+  osg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=osg;ctx.fillRect(0,0,sz,hs);
+
+  const tex=new THREE.CanvasTexture(cv);tex.anisotropy=gR?.capabilities?.getMaxAnisotropy()||4;
+  const mat=new THREE.MeshPhongMaterial({
+    map:tex,
+    specular:dark?new THREE.Color(.08,.10,.20):new THREE.Color(.15,.18,.30),
+    shininess:dark?18:28,
+    emissive:dark?new THREE.Color(.02,.04,.06):new THREE.Color(0,0,0),
+  });
+  if(gMesh){gSc.remove(gMesh);gMesh.geometry.dispose();gMesh.material.dispose();}
+  gMesh=new THREE.Mesh(new THREE.SphereGeometry(1,128,64),mat);gSc.add(gMesh);
+  gDirty=true;
 }
 
 function toggleGlobeStyle(){S.globeStyle=S.globeStyle==='dark'?'natural':'dark';$('gs-lbl').textContent=S.globeStyle==='dark'?'DARK':'NATURAL';buildGlobeTex();}
 function ll2v(lat,lon,r){const phi=(90-lat)*Math.PI/180,th=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(th),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(th));}
-function mkSpr(text,color){const cv=document.createElement('canvas');cv.width=128;cv.height=32;const ctx=cv.getContext('2d');ctx.font='bold 16px monospace';ctx.fillStyle=color;ctx.fillText(text,4,22);const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));sp.scale.set(.18,.045,1);return sp;}
+function mkSpr(text,color){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=40;
+  const ctx=cv.getContext('2d');
+  ctx.font='bold 18px monospace';
+  // Shadow for readability
+  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillText(text,6,28);ctx.fillText(text,5,27);
+  ctx.fillStyle=color;ctx.fillText(text,5,27);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));
+  sp.scale.set(.36,.056,1);return sp;
+}
 function clearArcs(){if(gSc)gArcs.forEach(a=>gSc.remove(a));gArcs=[];}
 function drawArc(la,loa,lb,lob,color,op){
   if(!gSc)return;
@@ -808,7 +1095,7 @@ function drawArc(la,loa,lb,lob,color,op){
   const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(.5).normalize().multiplyScalar(1.6);
   const pts=new THREE.QuadraticBezierCurve3(p1,mid,p2).getPoints(60);
   const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:op||.6}));
-  gSc.add(line);gArcs.push(line);
+  gSc.add(line);gArcs.push(line);gDirty=true;
 }
 function globeCountryMode(){
   if(!S.meta||!gSc)return;clearArcs();
@@ -860,7 +1147,7 @@ function initDragHandles(){
   document.addEventListener('mousemove',e=>{
     if(!which)return;
     const{el,prop,inv}=which;
-    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(80,Math.min(520,sW+dx))+'px';}
+    if(prop==='width'){const dx=inv?sX-e.clientX:e.clientX-sX;$(el).style.width=Math.max(80,Math.min(window.innerWidth*.55,sW+dx))+'px';}
     else{const dy=sY-e.clientY;$(el).style.height=Math.max(60,Math.min(450,sW+dy))+'px';}
   });
   document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();}});
@@ -871,7 +1158,7 @@ async function init(){
   const prog=(pct,msg)=>{$('loader-fill').style.width=pct+'%';$('loader-status').textContent=msg;};
   try{
     await loadData(prog);
-    buildCountryDD();buildNodeList();buildRiskGrid();updateMeta();
+    buildCountryDD();refreshCountryLabel();buildNodeList();buildRiskGrid();updateMeta();
     initDragHandles();
     requestAnimationFrame(()=>requestAnimationFrame(async()=>{
       try{
@@ -883,7 +1170,7 @@ async function init(){
   }catch(err){$('loader-status').textContent='Error: '+err.message;console.error(err);}
 }
 init();
-window.addEventListener('resize',()=>{if(gR){const cv=$('gcv');gR.setSize(cv.clientWidth,cv.clientHeight);gCam.aspect=cv.clientWidth/cv.clientHeight;gCam.updateProjectionMatrix();}renderNet();});
+window.addEventListener('resize',()=>{if(gR){const cv=$('gcv');gR.setSize(cv.clientWidth,cv.clientHeight);gCam.aspect=cv.clientWidth/cv.clientHeight;gCam.updateProjectionMatrix();gDirty=true;}renderNet();});
 </script>
 </body>
 </html>
