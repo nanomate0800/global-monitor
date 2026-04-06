@@ -793,14 +793,18 @@ function selectNode(n){
 }
 function zoomToNode(n){
   if(!net3d||!n)return;
-  const ae=getAE();const connIds=new Set([n.id]);
-  ae.forEach(e=>{const s=nid(e.source),t=nid(e.target);if(s===n.id||t===n.id){connIds.add(s);connIds.add(t);}});
-  const pts=(net3d.graphData().nodes||[]).filter(nd=>connIds.has(nd.id)&&isFinite(nd.x)&&isFinite(nd.y)&&isFinite(nd.z));
-  if(!pts.length){net3d.zoomToFit(600,60);return;}
-  const cx=pts.reduce((a,n2)=>a+n2.x,0)/pts.length;
-  const cy=pts.reduce((a,n2)=>a+n2.y,0)/pts.length;
-  const cz=pts.reduce((a,n2)=>a+n2.z,0)/pts.length;
-  net3d.cameraPosition({x:cx,y:cy,z:cz+350},{x:cx,y:cy,z:cz},600);
+  // Wait for simulation to place nodes then focus
+  setTimeout(()=>{
+    const ae=getAE();const connIds=new Set([n.id]);
+    ae.forEach(e=>{const s=nid(e.source),t=nid(e.target);if(s===n.id||t===n.id){connIds.add(s);connIds.add(t);}});
+    const pts=(net3d.graphData().nodes||[]).filter(nd=>connIds.has(nd.id)&&isFinite(nd.x)&&isFinite(nd.y));
+    if(!pts.length)return;
+    const cx=pts.reduce((a,nd)=>a+nd.x,0)/pts.length;
+    const cy=pts.reduce((a,nd)=>a+nd.y,0)/pts.length;
+    const cz=pts.reduce((a,nd)=>a+(nd.z||0),0)/pts.length;
+    const dist=pts.length<4?200:Math.max(150,pts.length*18);
+    net3d.cameraPosition({x:cx,y:cy,z:cz+dist},{x:cx,y:cy,z:cz},500);
+  },400);
 }
 function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();renderNet();setTimeout(autoZoom,800);}
 function clearNodeDet(){$('node-detail').style.display='none';$('nls').style.display='block';}
@@ -932,9 +936,9 @@ function updateSevList(){
 function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();updateResetBtn();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
 
 // ── NETWORK (3D force-graph) ──
-let net3d=null,netLastNodes=[],netLastEdges=[];
+let net3d=null;
 
-function autoZoom(){if(net3d)net3d.zoomToFit(400,80);}
+function autoZoom(){if(net3d)setTimeout(()=>net3d.zoomToFit(400,80),50);}
 
 function renderNet(){
   const el=$('net3d');
@@ -948,83 +952,75 @@ function renderNet(){
   const connSel=selId?new Set(ae.filter(e=>nid(e.source)===selId||nid(e.target)===selId).flatMap(e=>[nid(e.source),nid(e.target)])):null;
   const nodes=getNodes();
 
-  // Build 3d-force-graph data
+  // Build graph data — plain objects, no __proto__ tricks needed
   const gfNodes=nodes.map(n=>({
-    id:n.id,label:n.label||stripPfx(n.id),
-    category:n.category||'Other',country:n.country||null,
-    degree:n.degree,centrality:n.centrality,
-    __origNode:n
+    id:n.id, label:n.label||stripPfx(n.id),
+    category:n.category||'Other', country:n.country||null,
+    degree:n.degree, centrality:n.centrality
   }));
   const gfLinks=ae.map(e=>({
-    source:nid(e.source),target:nid(e.target),
-    correlation:e.correlation,strength:e.strength,
-    sign:e.sign,hypothetical:!!e.hypothetical,id:e.id,
-    __origEdge:e
+    source:nid(e.source), target:nid(e.target),
+    correlation:e.correlation, strength:e.strength,
+    hypothetical:!!e.hypothetical, id:e.id
   }));
-  // Add severed ghost links
   const sevLinks=allE.filter(e=>sevIds.has(e.id)&&e.strength>=S.thr).map(e=>({
-    source:nid(e.source),target:nid(e.target),
-    correlation:e.correlation,strength:e.strength,severed:true,id:e.id
+    source:nid(e.source), target:nid(e.target),
+    correlation:e.correlation, strength:e.strength, severed:true, id:e.id
   }));
 
-  S.gNodes=gfNodes; // keep reference for zoomToNode etc.
+  S.gNodes=gfNodes;
 
   const needsCluster=S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1);
   const dynCtrd=getCtrd();
+
+  // Helper: node color
+  const nodeCol=n=>{
+    if(n.country&&(S.level==='global'||S.level==='cross'))
+      return S.meta?.country_meta[n.country]?.color||CAT[n.category]||'#555566';
+    return CAT[n.category]||'#555566';
+  };
 
   if(!net3d){
     net3d=ForceGraph3D({antialias:true,alpha:true})(el);
     net3d
       .width(W).height(H)
-      .backgroundColor('rgba(0,0,0,0)')
+      .backgroundColor('#07080a')
       .showNavInfo(false)
-      .nodeThreeObject(node=>{
-        const grp=new THREE.Group();
-        const r=5+node.centrality*9;
-        // Outer ring
-        const ringGeo=new THREE.RingGeometry(r,r+1.2,32);
-        const ringMat=new THREE.MeshBasicMaterial({
-          color:node.country&&(S.level==='global'||S.level==='cross')?
-            (S.meta?.country_meta[node.country]?.color||CAT[node.category]||'#555'):
-            (CAT[node.category]||'#555'),
-          transparent:true,opacity:selId?(node.id===selId?0.95:connSel?.has(node.id)?0.7:0.15):0.8,
-          side:THREE.DoubleSide,depthWrite:false
-        });
-        grp.add(new THREE.Mesh(ringGeo,ringMat));
-        // Fill sphere
-        const sphGeo=new THREE.SphereGeometry(r*.65,12,12);
-        const sphMat=new THREE.MeshBasicMaterial({
-          color:selId&&node.id===selId?0xffffff:0x0c0d10,
-          transparent:true,opacity:selId?(node.id===selId?1:0.6):0.9
-        });
-        grp.add(new THREE.Mesh(sphGeo,sphMat));
-        // Text sprite
-        const cv=document.createElement('canvas');cv.width=256;cv.height=48;
-        const ctx=cv.getContext('2d');
-        ctx.font=`${selId&&node.id===selId?'500 ':'300 '}14px "DM Mono",monospace`;
-        const lbl=(node.label||'').length>24?(node.label||'').substring(0,22)+'…':node.label||'';
-        ctx.fillStyle=selId?(node.id===selId?'#eef0f8':connSel?.has(node.id)?'#9a9db0':'#3a3d4a'):'#9a9db0';
-        ctx.fillText(lbl,4,28);
-        const tex=new THREE.CanvasTexture(cv);
-        const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
-        spr.scale.set(32,8,1);spr.position.set(0,r+5,0);
-        grp.add(spr);
-        return grp;
+      // Node appearance
+      .nodeColor(n=>{
+        if(!selId) return nodeCol(n);
+        if(n.id===selId) return '#ffffff';
+        if(connSel&&connSel.has(n.id)) return nodeCol(n);
+        return '#222228';
       })
-      .nodeThreeObjectExtend(false)
-      .linkWidth(l=>l.severed?0.3:l.hypothetical?1.2:0.3+l.strength*3.2)
+      .nodeVal(n=>3+n.centrality*12)
+      .nodeLabel(n=>{
+        const iso3=n.country||(S.level==='country'?S.country:'USA');
+        const cMeta=S.meta?.country_meta[n.country];
+        const cT=n.country?`<br><span style="color:${cMeta?.color||'#888'}">${cMeta?.name||CNAME[n.country]||n.country}</span>`:'';
+        return `<div style="font:9px 'DM Mono',monospace;background:rgba(7,8,10,.88);color:#d8dbe6;padding:5px 9px;border:1px solid #23262e;border-radius:3px;line-height:1.7"><b style="color:#eef0f8">${n.label||stripPfx(n.id)}</b><br>Category: ${n.category}${cT}<br>Connections: ${n.degree}</div>`;
+      })
+      .nodeOpacity(n=>{
+        if(!selId) return 0.92;
+        if(n.id===selId) return 1;
+        if(connSel&&connSel.has(n.id)) return 0.85;
+        return 0.12;
+      })
+      .nodeResolution(12)
+      // Link appearance
+      .linkWidth(l=>l.severed?0.4:l.hypothetical?1.0:0.3+l.strength*3.0)
       .linkColor(l=>{
-        if(l.severed)return 'rgba(255,56,56,0.25)';
-        if(l.hypothetical)return '#60c8f0';
-        const op=Math.round((0.08+l.strength*0.78)*255).toString(16).padStart(2,'0');
-        return '#c8f060'+op;
+        if(l.severed) return 'rgba(255,56,56,0.3)';
+        if(l.hypothetical) return 'rgba(96,200,240,0.7)';
+        const op=(0.08+l.strength*0.78).toFixed(2);
+        return `rgba(200,240,96,${op})`;
       })
       .linkOpacity(1)
       .linkDirectionalParticles(0)
+      // Interactions
       .onNodeClick((node,ev)=>{
-        ev.stopPropagation();
         if(S.mode==='add'){
-          if(!S.addSrc){S.addSrc=node.__origNode||node;renderNet();}
+          if(!S.addSrc){S.addSrc=node;renderNet();}
           else if(S.addSrc.id!==node.id){
             const ex=getCurEdges().find(e=>{const s=nid(e.source),t=nid(e.target);return(s===S.addSrc.id&&t===node.id)||(s===node.id&&t===S.addSrc.id);});
             const cr=ex?ex.correlation:.5;
@@ -1033,48 +1029,56 @@ function renderNet(){
           }
           return;
         }
-        selectNode(node.__origNode||node);
+        // Find matching original node
+        const origNode=nodes.find(nd=>nd.id===node.id)||node;
+        selectNode(origNode);
       })
-      .onNodeHover((node,ev)=>{
-        if(!node)return hideTip();
-        const n=node.__origNode||node;
-        const lbl=n.label||n.id;
-        const iso3=n.country||(S.level==='country'?S.country:'USA');
-        const ae2=getAE();
-        const rv=r2(n.id,lbl,ae2.map(e=>({...e,source:nid(e.source),target:nid(e.target)})),iso3);
-        const cMeta=S.meta?.country_meta[n.country];
-        const cT=n.country?`<br>Country: <span style="color:${cMeta?.color}">${cMeta?.name||CNAME[n.country]||n.country}</span>`:'';
-        if(ev)showTip(`<b>${lbl}</b><br>Category: ${n.category}${cT}<br>Connections: ${n.degree}<br>Centrality: ${(n.centrality*100).toFixed(0)}%${rv!==null?`<br>R²: <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);
+      .onNodeHover(node=>{
+        el.style.cursor=node?'pointer':'default';
       })
       .onLinkClick((link,ev)=>{
         if(S.mode!=='sever')return;
-        ev.stopPropagation();
         if(link.hypothetical){S.hyp=S.hyp.filter(h=>h.id!==link.id);}
         else{S.severed.add(link.id);}
         updateSevList();const ae2=getAE();renderImpact('severed',getNodes(),allE,ae2);globePulse();renderNet();
       })
       .onBackgroundClick(()=>{if(S.selNode)clearSel();});
 
-    // Cluster force
+    // Forces
+    net3d.d3Force('charge').strength(needsCluster?-160:-320);
+    net3d.d3Force('link').distance(l=>300-l.strength*150).strength(.12);
+    net3d.d3Force('center',null); // remove built-in centering, let cluster handle it
+
     if(needsCluster){
-      net3d.d3Force('cluster',()=>{
-        net3d.graphData().nodes.forEach(n=>{
+      net3d.d3Force('cluster',alpha=>{
+        (net3d.graphData().nodes||[]).forEach(n=>{
           const c=dynCtrd[n.country];if(!c)return;
-          const tx=c[0]*W*.45,ty=c[1]*H*.45,tz=0;
-          n.vx=(n.vx||0)+(tx-n.x)*.02;
-          n.vy=(n.vy||0)+(ty-n.y)*.02;
-          n.vz=(n.vz||0)+(tz-(n.z||0))*.02;
+          const tx=c[0]*W*.40,ty=c[1]*H*.40,tz=0;
+          n.vx=(n.vx||0)+(tx-n.x)*alpha*.25;
+          n.vy=(n.vy||0)+(ty-n.y)*alpha*.25;
+          n.vz=(n.vz||0)+(tz-(n.z||0))*alpha*.25;
         });
       });
     }
-    net3d.d3Force('charge').strength(needsCluster?-180:-380);
-    net3d.d3Force('link').distance(l=>500-l.strength*260).strength(.08);
+  } else {
+    // Update node/link appearance callbacks on re-render (selection changed etc.)
+    net3d
+      .nodeColor(n=>{
+        if(!selId) return nodeCol(n);
+        if(n.id===selId) return '#ffffff';
+        if(connSel&&connSel.has(n.id)) return nodeCol(n);
+        return '#222228';
+      })
+      .nodeOpacity(n=>{
+        if(!selId) return 0.92;
+        if(n.id===selId) return 1;
+        if(connSel&&connSel.has(n.id)) return 0.85;
+        return 0.12;
+      });
   }
 
   net3d.graphData({nodes:gfNodes,links:[...gfLinks,...sevLinks]});
-
-  // Reset camera if no prior position
-  setTimeout(()=>net3d.zoomToFit(600,60),800);
+  if(!selId) setTimeout(()=>net3d&&net3d.zoomToFit(700,80),900);
 
   // Status readout
   const parts=[];
@@ -1234,7 +1238,7 @@ function globePulse(){
 }
 
 function resetNet3D(){
-  if(net3d){net3d.zoomToFit(400,80);net3d.cameraPosition({x:0,y:0,z:600},{x:0,y:0,z:0},600);}
+  if(net3d){net3d.cameraPosition({x:0,y:0,z:600},{x:0,y:0,z:0},500);setTimeout(()=>net3d&&net3d.zoomToFit(500,80),520);}
 }
 
 // ── SHOCK PROPAGATION ──
@@ -1328,7 +1332,7 @@ function initDragHandles(){
     else{const dy=sY-e.clientY;$(el).style.height=Math.max(60,Math.min(450,sW+dy))+'px';}
     if(which?.el==='pg')resizeGlobe();
   });
-  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();resizeGlobe();}});
+  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;if(net3d){const el=$('net3d');if(el)net3d.width(el.offsetWidth).height(el.offsetHeight);}renderNet();resizeGlobe();}});
 }
 
 // ── INIT ──
@@ -1348,7 +1352,10 @@ async function init(){
   }catch(err){$('loader-status').textContent='Error: '+err.message;console.error(err);}
 }
 init();
-window.addEventListener('resize',()=>{renderNet();});
+window.addEventListener('resize',()=>{
+  if(net3d){const el=$('net3d');if(el)net3d.width(el.offsetWidth).height(el.offsetHeight);}
+  renderNet();
+});
 </script>
 </body>
 </html>
