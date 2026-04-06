@@ -120,15 +120,155 @@ def _quick_corr(xs, ys):
     den = (sum((x-mx)**2 for x in xs)*sum((y-my)**2 for y in ys))**0.5
     return max(-1.0, min(1.0, num/den)) if den > 0 else 0.0
 
-def compute_corr(data_dict, y1, y2, min_obs=5):
+# ── DOMAIN WHITELIST ──
+# Only allow correlations between category pairs with a plausible mechanism.
+# Format: frozenset({cat_a, cat_b}) — symmetric, same-category pairs always allowed.
+_ALLOWED_CAT_PAIRS = {
+    frozenset({'Economy','Economy'}),
+    frozenset({'Economy','Trade'}),
+    frozenset({'Economy','SovereignDebt'}),
+    frozenset({'Economy','Energy'}),
+    frozenset({'Economy','Governance'}),
+    frozenset({'Economy','Demographics'}),
+    frozenset({'Economy','Demographic'}),
+    frozenset({'Economy','Health'}),
+    frozenset({'Economy','Social'}),
+    frozenset({'Economy','Education'}),
+    frozenset({'SovereignDebt','SovereignDebt'}),
+    frozenset({'SovereignDebt','Governance'}),
+    frozenset({'SovereignDebt','Economy'}),
+    frozenset({'Energy','Economy'}),
+    frozenset({'Energy','Environment'}),
+    frozenset({'Energy','Climate'}),
+    frozenset({'Energy','Energy'}),
+    frozenset({'Environment','Climate'}),
+    frozenset({'Environment','Health'}),
+    frozenset({'Environment','Environment'}),
+    frozenset({'Climate','Climate'}),
+    frozenset({'Climate','Health'}),
+    frozenset({'Climate','Energy'}),
+    frozenset({'Climate','Agriculture'}),
+    frozenset({'Health','Health'}),
+    frozenset({'Health','Social'}),
+    frozenset({'Health','Education'}),
+    frozenset({'Health','Demographics'}),
+    frozenset({'Health','Demographic'}),
+    frozenset({'Social','Social'}),
+    frozenset({'Social','Education'}),
+    frozenset({'Social','Demographics'}),
+    frozenset({'Social','Demographic'}),
+    frozenset({'Education','Education'}),
+    frozenset({'Education','Demographics'}),
+    frozenset({'Education','Demographic'}),
+    frozenset({'Trade','Trade'}),
+    frozenset({'Trade','Economy'}),
+    frozenset({'Governance','Governance'}),
+    frozenset({'Demographics','Demographics'}),
+    frozenset({'Demographic','Demographic'}),
+}
+
+def _domain_allowed(cat_a, cat_b):
+    """Return True if this category pair has a plausible causal mechanism."""
+    if cat_a == cat_b:
+        return True
+    return frozenset({cat_a, cat_b}) in _ALLOWED_CAT_PAIRS
+
+def _granger_score(xs, ys, lag=1):
     """
-    Robust correlation pipeline:
+    Simple Granger-causality check: does xs[t-lag] improve prediction of ys[t]
+    beyond ys[t-lag] alone?
+    Returns the F-like improvement ratio (>1 means xs Granger-causes ys).
+    Uses OLS residuals: RSS_restricted (AR only) vs RSS_unrestricted (AR + lagged X).
+    """
+    n = len(ys)
+    if n < lag + 4:
+        return 1.0
+    # Restricted: predict ys[t] from ys[t-1]
+    y_t  = np.array(ys[lag:])
+    y_l  = np.array(ys[:-lag])
+    x_l  = np.array(xs[:-lag])
+    # OLS: y_t = a + b*y_l  (restricted)
+    def ols_resid(Y, *Xs):
+        A = np.column_stack([np.ones(len(Y))] + list(Xs))
+        try:
+            b = np.linalg.lstsq(A, Y, rcond=None)[0]
+            return Y - A @ b
+        except Exception:
+            return Y
+    rss_r = np.sum(ols_resid(y_t, y_l)**2)
+    rss_u = np.sum(ols_resid(y_t, y_l, x_l)**2)
+    if rss_u < 1e-12:
+        return 1.0
+    return float(rss_r / rss_u)   # >1 means improvement; we want >1.15
+
+def _partial_corr_ab_given_others(residuals, key_a, key_b, all_keys):
+    """
+    Partial correlation of A and B after removing shared variance from all other series
+    that are correlated with both A and B.
+    We regress out the top-3 most correlated 'confounders' from both A and B first.
+    """
+    common_ab = sorted(set(residuals[key_a]) & set(residuals[key_b]))
+    if len(common_ab) < 5:
+        return _quick_corr(
+            [residuals[key_a][y] for y in common_ab],
+            [residuals[key_b][y] for y in common_ab]
+        )
+    xa = np.array([residuals[key_a][y] for y in common_ab])
+    xb = np.array([residuals[key_b][y] for y in common_ab])
+
+    # Find confounders: other series with high correlation to BOTH a and b
+    confounders = []
+    for k in all_keys:
+        if k == key_a or k == key_b: continue
+        common_k = sorted(set(residuals.get(k,{}).keys()) & set(common_ab))
+        if len(common_k) < 5: continue
+        xk_full = {y: residuals[k][y] for y in common_k}
+        xk_a = [xk_full[y] for y in common_ab if y in xk_full]
+        xk_b = [xk_full[y] for y in common_ab if y in xk_full]
+        if len(xk_a) < 5: continue
+        r_ka = abs(_quick_corr(xk_a, [xa[i] for i,y in enumerate(common_ab) if y in xk_full]))
+        r_kb = abs(_quick_corr(xk_b, [xb[i] for i,y in enumerate(common_ab) if y in xk_full]))
+        if r_ka > 0.35 and r_kb > 0.35:
+            confounders.append((r_ka + r_kb, k, common_k))
+
+    if not confounders:
+        return _quick_corr(xa.tolist(), xb.tolist())
+
+    # Regress out top-3 confounders from xa and xb
+    confounders.sort(reverse=True)
+    for _, k, cy in confounders[:3]:
+        xk = np.array([residuals[k][y] for y in cy])
+        # only use years present in both
+        idx_a = [i for i, y in enumerate(common_ab) if y in set(cy)]
+        if len(idx_a) < 4: continue
+        xa_sub = xa[idx_a]; xk_sub = xk[[list(cy).index(common_ab[i]) for i in idx_a] if len(cy)==len(xk) else range(len(xk_sub))]
+        # simple version: just subtract projection
+        try:
+            xk_arr = np.array([residuals[k][y] for y in common_ab if y in residuals[k]])
+            if len(xk_arr) == len(xa):
+                b = float(np.cov(xk_arr, xa)[0,1] / (np.var(xk_arr) + 1e-12))
+                xa = xa - b * xk_arr
+                b2 = float(np.cov(xk_arr, xb)[0,1] / (np.var(xk_arr) + 1e-12))
+                xb = xb - b2 * xk_arr
+        except Exception:
+            pass
+
+    return _quick_corr(xa.tolist(), xb.tolist())
+
+
+def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
+    """
+    6-stage robust correlation pipeline:
       1. First-differencing  — removes shared linear trend
-      2. Common-factor residual — removes shared global cycle (median across all series)
-      3. Fisher z significance test — removes noise correlations (p < 0.15)
+      2. Common-factor residual — removes shared global cycle
+      3. Fisher-z significance test — removes noise (p < 0.15)
       4. Consistency check — same sign in both halves of the period
+      5. Domain whitelist — only category pairs with a plausible mechanism
+      6. Granger causality — at least one direction must show predictive power
+         (for within-country correlations when cat_map is provided)
+    Partial correlation check is applied in the cross-country pipeline separately.
     """
-    # ── Step 1: first-difference all series ──
+    # ── Stage 1: first-difference all series ──
     diff_map = {}
     for key, pairs in data_dict.items():
         da = {yr: v for yr, v in pairs if y1 <= yr <= y2}
@@ -140,7 +280,7 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
     if len(diff_map) < 2:
         return []
 
-    # ── Step 2: compute common factor (median across all series per year) ──
+    # ── Stage 2: common factor (median across all diffs per year) ──
     all_years_set = set()
     for d in diff_map.values(): all_years_set |= set(d.keys())
     factor = {}
@@ -149,7 +289,7 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
         if len(vals) >= 3:
             factor[yr] = float(np.median(vals))
 
-    # ── Step 3: subtract common factor to get residuals ──
+    # ── Stage 3: subtract common factor → residuals ──
     residuals = {}
     for key, diffs in diff_map.items():
         cy = sorted(set(diffs.keys()) & set(factor.keys()))
@@ -170,6 +310,14 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
     for i in range(len(keys)):
         for j in range(i + 1, len(keys)):
             a, b = keys[i], keys[j]
+
+            # ── Stage 5 (early): domain whitelist ──
+            if cat_map is not None:
+                cat_a = cat_map.get(a, 'Other')
+                cat_b = cat_map.get(b, 'Other')
+                if not _domain_allowed(cat_a, cat_b):
+                    continue
+
             common = sorted(set(residuals[a]) & set(residuals[b]))
             n = len(common)
             if n < max(4, min_obs - 1): continue
@@ -177,20 +325,30 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
             ys = [residuals[b][y] for y in common]
             r = _quick_corr(xs, ys)
 
-            # ── Step 4: Fisher z significance (no scipy) ──
+            # ── Stage 3b: Fisher-z significance ──
             ar = abs(r)
             if ar >= 1.0 - 1e-9: continue
             z = 0.5 * np.log((1 + ar) / (1 - ar))
-            z_thr = 1.44 / max(1, (n - 3)) ** 0.5  # ≈ 15% two-tailed
+            z_thr = 1.44 / max(1, (n - 3)) ** 0.5
             if z < z_thr: continue
 
-            # ── Step 5: consistency — same sign in both halves ──
+            # ── Stage 4: consistency — same sign in both halves ──
             mid = n // 2
             if mid >= 3 and n - mid >= 3:
                 r1 = _quick_corr(xs[:mid], ys[:mid])
                 r2 = _quick_corr(xs[mid:], ys[mid:])
-                # Reject only if halves clearly contradict each other
                 if r1 * r2 < 0 and min(abs(r1), abs(r2)) > 0.25:
+                    continue
+
+            # ── Stage 6: Granger — at least one direction predictive ──
+            if cat_map is not None and n >= 8:
+                # Get raw differenced series for lag test
+                raw_xs = [diff_map[a].get(y, xs[i]) for i, y in enumerate(common)]
+                raw_ys = [diff_map[b].get(y, ys[i]) for i, y in enumerate(common)]
+                g_ab = _granger_score(raw_xs, raw_ys, lag=1)
+                g_ba = _granger_score(raw_ys, raw_xs, lag=1)
+                # Reject if neither direction shows any Granger improvement
+                if g_ab < 1.05 and g_ba < 1.05:
                     continue
 
             edges.append({'id': eid, 'source': a, 'target': b,
@@ -202,6 +360,7 @@ def compute_corr(data_dict, y1, y2, min_obs=5):
 corr_count = 0
 for iso3 in COUNTRIES:
     sub = df[df['iso3']==iso3]
+    cat_map_c = dict(zip(sub['indicator_name'], sub['category']))
     # Build data dict with hist + forecast merged
     data_dict = {}
     for ind_name in sub['indicator_name'].unique():
@@ -213,7 +372,7 @@ for iso3 in COUNTRIES:
 
     for (y1,y2) in YEAR_WINDOWS:
         is_proj = y2 > HIST_END
-        edges = compute_corr(data_dict, y1, y2)
+        edges = compute_corr(data_dict, y1, y2, cat_map=cat_map_c)
         for e in edges: e['projected'] = is_proj
         out = {
             'iso3': iso3, 'year_start': y1, 'year_end': y2,
@@ -230,7 +389,7 @@ for ind_name in df['indicator_name'].unique():
     rows = df[df['indicator_name']==ind_name].sort_values('year')
     data_dict_g[ind_name] = list(zip(rows['year'].tolist(), rows['value'].tolist()))
 for (y1,y2) in YEAR_WINDOWS:
-    edges = compute_corr(data_dict_g, y1, y2)
+    edges = compute_corr(data_dict_g, y1, y2, cat_map=cat_map)
     out = {'iso3':'GLOBAL','year_start':y1,'year_end':y2,'is_forecast':y2>HIST_END,'edges':edges}
     with open(CORR_DIR/f'GLOBAL_{y1}_{y2}.json','w') as f: json.dump(out,f,separators=(',',':'))
 
@@ -252,7 +411,12 @@ for iso_a, iso_b in combinations(COUNTRIES,2):
             if len(common)<8: continue
             # First-difference both series to remove shared trends
             r = sa[common].diff().dropna().corr(sb[common].diff().dropna())
-            if np.isnan(r) or abs(r)<0.55: continue  # lower bar since diff reduces spurious high-r
+            if np.isnan(r) or abs(r)<0.60: continue
+            # Domain whitelist check
+            cat_a2 = cat_map.get(ind_a, 'Other')
+            cat_b2 = cat_map.get(ind_b, 'Other')
+            if not _domain_allowed(cat_a2, cat_b2):
+                continue
             cat_a = cat_map.get(ind_a,'Other')
             cat_b = cat_map.get(ind_b,'Other')
             arc   = 'climate_economic' if 'Climate' in [cat_a,cat_b] else \
@@ -362,7 +526,7 @@ for iso3 in COUNTRIES:
     # Compute degree from full-range correlations
     edges = compute_corr({ind: list(zip(rows['year'],rows['value'])) for ind,rows in
                           {i: sub[sub['indicator_name']==i].sort_values('year') for i in sub['indicator_name'].unique()}.items()},
-                         HIST_START, HIST_END)
+                         HIST_START, HIST_END, cat_map=cat_map_c)
     deg = defaultdict(int)
     for e in edges: deg[e['source']]+=1; deg[e['target']]+=1
     max_d = max(deg.values(),default=1)
