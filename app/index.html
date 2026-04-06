@@ -3,10 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Global Monitor</title>
+<title>Oversight</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://unpkg.com/globe.gl@2.45.2/dist/globe.gl.min.js"></script>
-<script src="https://unpkg.com/3d-force-graph@1.70.10/dist/3d-force-graph.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap');
 :root{
@@ -16,9 +15,10 @@
   --ph:#c8f060;--pm:#7ab830;--nh:#f06080;--nm:#803040;
   --sv:#ff3838;--hy:#60c8f0;--af:#f0a030;
   --danger:#ff4444;--warn:#f0a030;
+  --fs:11px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:11px;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:var(--fs);}
 body{display:flex;flex-direction:column;}
 
 /* HEADER */
@@ -117,9 +117,7 @@ tr.hi td{color:var(--tx);}
 #gcv:active{cursor:grabbing;}
 /* globe.gl manages canvas size internally — do NOT override width/height */
 #gcv canvas{display:block;}
-#pn{flex:1;position:relative;min-height:0;background:var(--s1);}
-#net3d{position:absolute;inset:0;}
-#net3d canvas{display:block;}
+#nsvg{width:100%;height:100%;display:block;}
 #tip{position:fixed;background:#0b0c10;border:1px solid var(--b2);padding:8px 11px;font-size:9px;color:var(--tx);pointer-events:none;z-index:999;display:none;max-width:240px;line-height:1.8;border-radius:3px;}
 #tip b{color:var(--wh);}
 .tr{color:var(--ph);}.tn{color:var(--nh);}
@@ -211,13 +209,13 @@ tr.hi td{color:var(--tx);}
 </head>
 <body>
 <div id="loader">
-  <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--wh)">Global <em style="color:var(--ph);font-style:italic">Monitor</em></div>
+  <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--wh)">Over<em style="color:var(--ph);font-style:italic">sight</em></div>
   <div class="loader-bar"><div class="loader-fill" id="loader-fill" style="width:0%"></div></div>
   <div style="font-size:9px;color:var(--mu);letter-spacing:.1em" id="loader-status">Loading...</div>
 </div>
 <div id="tip"></div>
 <header>
-  <div class="hlogo">Global <em>Monitor</em></div>
+  <div class="hlogo"><span style="font-family:'Instrument Serif',serif;font-size:15px">Over</span><em>sight</em></div>
   <div class="hnav">
     <div class="nav-seg" id="ns-level">
       <div class="nav-btn active" id="nb-level" onclick="toggleNav('nd-level')">
@@ -255,6 +253,7 @@ tr.hi td{color:var(--tx);}
     <div class="hmbtn"    id="m-add"     onclick="setMode('add',this)"><div class="dot"></div>ADD</div>
   </div>
   <div class="htoggle" onclick="globeResetView()" title="Re-centre globe">⊙ GLOBE</div>
+  <div class="htoggle" id="font-toggle" onclick="cycleFontSize()" title="Cycle text size" style="letter-spacing:.06em">Aa</div>
   <div class="hmeta"><span id="hmeta">loading...</span></div>
 </header>
 <div class="ws">
@@ -317,9 +316,9 @@ tr.hi td{color:var(--tx);}
   <div id="ccol">
     <div id="pn">
       <div class="plabel" id="net-label">GLOBAL NETWORK</div>
-      <div class="net-instr">left-drag: rotate · scroll: zoom · right-drag: pan<br>SEVER: click edge · ADD: click source then target</div>
+      <div class="net-instr">scroll: zoom · drag: pan · right-drag: 3D tilt<br>SEVER: click edge · ADD: click source then target</div>
       <div id="net-reset-3d" onclick="resetNet3D()" title="Reset 3D perspective and zoom" style="position:absolute;top:8px;right:95px;font-size:7px;letter-spacing:.10em;color:var(--mu);cursor:pointer;padding:3px 7px;border:1px solid var(--b2);border-radius:2px;z-index:4;transition:all .12s;user-select:none" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--mu)'">⊹ RESET VIEW</div>
-      <div id="net3d"></div>
+      <svg id="nsvg"></svg>
       <div class="legend">
         <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>|r| strong</div>
         <div class="li"><div class="ll" style="background:#c8f060;opacity:.50;height:2px"></div>|r| mid</div>
@@ -399,7 +398,15 @@ const S={level:'global',countries:['USA'],mode:'explore',thr:.35,sign:'both',yS:
 Object.defineProperty(S,'country',{get(){return S.countries[0]||'USA'},set(v){S.countries=[v];}});
 
 const $=id=>document.getElementById(id);
-// THREE is exposed globally by 3d-force-graph
+const _fontSizes=['10px','11px','13px','15px'];
+let _fsIdx=1;
+function cycleFontSize(){
+  _fsIdx=(_fsIdx+1)%_fontSizes.length;
+  document.documentElement.style.setProperty('--fs',_fontSizes[_fsIdx]);
+  const lbl=['S','M','L','XL'][_fsIdx];
+  $('font-toggle').textContent=lbl;
+  $('font-toggle').title='Text size: '+lbl;
+}
 const tip=$('tip');
 function showTip(h,e){tip.innerHTML=h;tip.style.display='block';const x=e.clientX,y=e.clientY,W=window.innerWidth;tip.style.left=(x+16>W-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';}
 function hideTip(){tip.style.display='none';}
@@ -792,21 +799,21 @@ function selectNode(n){
   setTimeout(()=>zoomToNode(n),50);
 }
 function zoomToNode(n){
-  if(!net3d||!n)return;
-  // Wait for simulation to place nodes then focus
-  setTimeout(()=>{
-    const ae=getAE();const connIds=new Set([n.id]);
-    ae.forEach(e=>{const s=nid(e.source),t=nid(e.target);if(s===n.id||t===n.id){connIds.add(s);connIds.add(t);}});
-    const pts=(net3d.graphData().nodes||[]).filter(nd=>connIds.has(nd.id)&&isFinite(nd.x)&&isFinite(nd.y));
-    if(!pts.length)return;
-    const cx=pts.reduce((a,nd)=>a+nd.x,0)/pts.length;
-    const cy=pts.reduce((a,nd)=>a+nd.y,0)/pts.length;
-    const cz=pts.reduce((a,nd)=>a+(nd.z||0),0)/pts.length;
-    const dist=pts.length<4?200:Math.max(150,pts.length*18);
-    net3d.cameraPosition({x:cx,y:cy,z:cz+dist},{x:cx,y:cy,z:cz},500);
-  },400);
+  if(!netZoom||!n)return;
+  const svgEl=$('nsvg'),W=svgEl.clientWidth,H=svgEl.clientHeight;
+  const ae=getAE();const connIds=new Set([n.id]);
+  ae.forEach(e=>{const s=nid(e.source),t=nid(e.target);if(s===n.id||t===n.id){connIds.add(s);connIds.add(t);}});
+  const pts=S.gNodes.filter(nd=>connIds.has(nd.id)&&isFinite(nd.x)&&isFinite(nd.y));
+  if(!pts.length)return;
+  const xs=pts.map(d=>d.x),ys=pts.map(d=>d.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const pad=120,bw=x1-x0+pad*2,bh=y1-y0+pad*2;
+  const sc=Math.min(W/bw,H/bh,2.5);
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  d3.select('#nsvg').transition().duration(600)
+    .call(netZoom.transform,d3.zoomIdentity.translate(W/2-cx*sc,H/2-cy*sc).scale(sc));
 }
-function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();renderNet();setTimeout(autoZoom,800);}
+function clearSel(){S.selNode=null;S.addSrc=null;clearNodeDet();autoZoom();renderNet();}
 function clearNodeDet(){$('node-detail').style.display='none';$('nls').style.display='block';}
 function showNodeDetail(n){
   $('nls').style.display='none';$('node-detail').style.display='block';
@@ -935,154 +942,177 @@ function updateSevList(){
 }
 function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();updateResetBtn();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
 
-// ── NETWORK (3D force-graph) ──
-let net3d=null;
+// ── NETWORK ──
+let sim=null,netZoom=null,_rd3={rx:0,ry:0};
 
-function autoZoom(){if(net3d)setTimeout(()=>net3d.zoomToFit(400,80),50);}
+function autoZoom(){
+  const svgEl=$('nsvg');if(!netZoom||!svgEl)return;
+  const W=svgEl.clientWidth,H=svgEl.clientHeight;
+  if(!S.gNodes||S.gNodes.length<2)return;
+  const active=S.gNodes.filter(n=>isFinite(n.x)&&isFinite(n.y));
+  if(active.length<2)return;
+  const xs=active.map(n=>n.x),ys=active.map(n=>n.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const pad=80,bw=x1-x0+pad*2,bh=y1-y0+pad*2;
+  if(bw<=0||bh<=0)return;
+  const sc=Math.min(W/bw,H/bh,1.1);
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  d3.select('#nsvg').transition().duration(700)
+    .call(netZoom.transform,d3.zoomIdentity.translate(W/2-cx*sc,H/2-cy*sc).scale(sc));
+}
 
 function renderNet(){
-  const el=$('net3d');
-  if(!el||!S.meta){requestAnimationFrame(renderNet);return;}
-  // Read size from parent (#pn) since #net3d is position:absolute
-  const pn=$('pn');
-  const W=(pn?pn.offsetWidth:el.offsetWidth)||600;
-  const H=(pn?pn.offsetHeight:el.offsetHeight)||400;
+  const svgEl=$('nsvg');
+  if(!svgEl||!S.meta){requestAnimationFrame(renderNet);return;}
+  const W=svgEl.clientWidth,H=svgEl.clientHeight;
   if(W===0||H===0){requestAnimationFrame(renderNet);return;}
 
-  const allE=getCurEdges(),ae=getAE();
-  const sevIds=new Set(allE.filter(e=>S.severed.has(e.id)).map(e=>e.id));
+  const allE=getCurEdges(),ae=getAE(),sevV=allE.filter(e=>S.severed.has(e.id)&&e.strength>=S.thr);
   const selId=S.selNode?.id;
   const connSel=selId?new Set(ae.filter(e=>nid(e.source)===selId||nid(e.target)===selId).flatMap(e=>[nid(e.source),nid(e.target)])):null;
   const nodes=getNodes();
-
-  // Build graph data — plain objects, no __proto__ tricks needed
-  const gfNodes=nodes.map(n=>({
-    id:n.id, label:n.label||stripPfx(n.id),
-    category:n.category||'Other', country:n.country||null,
-    degree:n.degree, centrality:n.centrality
+  const existing={};(S.gNodes||[]).forEach(n=>existing[n.id]=n);
+  S.gNodes=nodes.map(n=>({...n,
+    x:existing[n.id]?.x??W/2+(Math.random()-.5)*300,
+    y:existing[n.id]?.y??H/2+(Math.random()-.5)*300,
+    vx:existing[n.id]?.vx??0,vy:existing[n.id]?.vy??0
   }));
-  const gfLinks=ae.map(e=>({
-    source:nid(e.source), target:nid(e.target),
-    correlation:e.correlation, strength:e.strength,
-    hypothetical:!!e.hypothetical, id:e.id
-  }));
-  const sevLinks=allE.filter(e=>sevIds.has(e.id)&&e.strength>=S.thr).map(e=>({
-    source:nid(e.source), target:nid(e.target),
-    correlation:e.correlation, strength:e.strength, severed:true, id:e.id
-  }));
+  const byId={};S.gNodes.forEach(n=>byId[n.id]=n);
+  const aeR=ae.map(e=>({...e,source:byId[nid(e.source)]??nid(e.source),target:byId[nid(e.target)]??nid(e.target)}));
 
-  S.gNodes=gfNodes;
+  const svg=d3.select('#nsvg');svg.selectAll('*').remove();
+  const zg=svg.append('g').attr('class','zg');
 
+  // 3D perspective via CSS on the svg element
+  svgEl.style.transform=`perspective(1100px) rotateX(${_rd3.rx}deg) rotateY(${_rd3.ry}deg)`;
+  svgEl.style.transformOrigin='50% 50%';
+
+  netZoom=d3.zoom().scaleExtent([.05,8]).on('zoom',ev=>zg.attr('transform',ev.transform));
+  svg.call(netZoom);
+
+  // Right-drag = 3D rotate
+  let rdDrag=false,rdPrev={x:0,y:0};
+  svgEl.addEventListener('contextmenu',e=>e.preventDefault());
+  svgEl.addEventListener('mousedown',e=>{if(e.button===2){rdDrag=true;rdPrev={x:e.clientX,y:e.clientY};e.preventDefault();}});
+  svgEl.addEventListener('mousemove',e=>{
+    if(!rdDrag)return;
+    _rd3.ry+=( e.clientX-rdPrev.x)*.35;
+    _rd3.rx-=(e.clientY-rdPrev.y)*.35;
+    _rd3.rx=Math.max(-70,Math.min(70,_rd3.rx));
+    rdPrev={x:e.clientX,y:e.clientY};
+    svgEl.style.transform=`perspective(1100px) rotateX(${_rd3.rx}deg) rotateY(${_rd3.ry}deg)`;
+  });
+  svgEl.addEventListener('mouseup',e=>{if(e.button===2)rdDrag=false;});
+  svgEl.addEventListener('mouseleave',()=>rdDrag=false);
+  svg.on('click',()=>{if(S.selNode)clearSel();});
+
+  const gSev=zg.append('g'),gE=zg.append('g'),gN=zg.append('g');
+
+  // Severed ghosts
+  const sevLines=gSev.selectAll('line').data(sevV).join('line')
+    .attr('stroke','var(--sv)').attr('stroke-width',.8).attr('stroke-dasharray','4,4').attr('opacity',.18);
+
+  // Edges
+  const eLines=gE.selectAll('line').data(aeR).join('line')
+    .attr('stroke',d=>d.hypothetical?'var(--hy)':'#c8f060')
+    .attr('stroke-width',d=>d.hypothetical?1.2:0.3+d.strength*3.0)
+    .attr('stroke-dasharray',d=>d.hypothetical?'5,3':null)
+    .attr('opacity',d=>{
+      if(d.hypothetical)return.8;
+      const op=0.08+d.strength*0.78;
+      if(selId){const s=nid(d.source),t=nid(d.target);return(s===selId||t===selId)?op:.03;}
+      return op;
+    })
+    .attr('cursor',S.mode==='sever'?'pointer':'default')
+    .on('mouseover',(ev,d)=>{const s=stripPfx(nid(d.source)),t=stripPfx(nid(d.target));showTip(`<b>${s.substring(0,32)}</b><br>↔ <b>${t.substring(0,32)}</b><br>r = <span class="${d.correlation>0?'tr':'tn'}">${d.correlation}</span>`,ev);})
+    .on('mousemove',ev=>{tip.style.left=(ev.clientX+16)+'px';tip.style.top=(ev.clientY-6)+'px';})
+    .on('mouseout',hideTip)
+    .on('click',(ev,d)=>{
+      if(S.mode!=='sever')return;ev.stopPropagation();
+      if(d.hypothetical){S.hyp=S.hyp.filter(h=>h!==d);}else{S.severed.add(d.id);}
+      updateSevList();const ae2=getAE();renderImpact('severed',getNodes(),allE,ae2);globePulse();renderNet();
+    });
+
+  // Nodes
+  const nSel=gN.selectAll('g').data(S.gNodes).join('g').attr('cursor',S.mode==='add'?'cell':'pointer');
+  nSel.append('circle')
+    .attr('r',d=>12+d.centrality*14)
+    .attr('fill','var(--s1)')
+    .attr('stroke',d=>{
+      if((S.level==='global'||S.level==='cross')&&d.country)return S.meta.country_meta[d.country]?.color||CAT[d.category]||'#555';
+      return CAT[d.category]||'#555';
+    })
+    .attr('stroke-width',d=>selId&&d.id===selId?2.5:1.2)
+    .attr('opacity',d=>{if(selId){if(d.id===selId)return 1;if(connSel?.has(d.id))return.9;return.18;}return 1;});
+  nSel.append('text')
+    .attr('y',d=>-(14+d.centrality*14)-3)
+    .attr('text-anchor','middle')
+    .attr('font-family','DM Mono,monospace')
+    .attr('font-size',d=>selId&&d.id===selId?9:8)
+    .attr('fill',d=>{if(selId){if(d.id===selId)return'var(--wh)';if(connSel?.has(d.id))return'var(--mu2)';return'var(--mu)';}return'var(--mu2)';})
+    .attr('opacity',d=>{if(selId)return d.id===selId?1:connSel?.has(d.id)?.85:.2;return 1;})
+    .attr('pointer-events','none')
+    .text(d=>{const l=d.label||stripPfx(d.id);return l.length>26?l.substring(0,24)+'…':l;});
+  nSel
+    .on('mouseover',(ev,d)=>{
+      const lbl=d.label||d.id;
+      const iso3=d.country||(S.level==='country'?S.country:'USA');
+      const rv=r2(d.id,lbl,aeR,iso3);
+      const cMeta=S.meta.country_meta[d.country];
+      const cT=d.country?`<br>Country: <span style="color:${cMeta?.color}">${cMeta?.name||CNAME[d.country]||d.country}</span>`:'';
+      showTip(`<b>${d.label||stripPfx(d.id)}</b><br>Category: ${d.category}${cT}<br>Connections: ${d.degree}${rv!==null?`<br>R²: <span class="tr">${(rv*100).toFixed(1)}%</span>`:''}`,ev);
+    })
+    .on('mousemove',ev=>{const W2=window.innerWidth;tip.style.left=(ev.clientX+16>W2-250?ev.clientX-246:ev.clientX+16)+'px';tip.style.top=(ev.clientY-6)+'px';})
+    .on('mouseout',hideTip)
+    .on('click',(ev,d)=>{
+      ev.stopPropagation();
+      if(S.mode==='add'){
+        if(!S.addSrc){S.addSrc=d;renderNet();}
+        else if(S.addSrc.id!==d.id){
+          const ex=getCurEdges().find(e=>{const s=nid(e.source),t=nid(e.target);return(s===S.addSrc.id&&t===d.id)||(s===d.id&&t===S.addSrc.id);});
+          const cr=ex?ex.correlation:.5;
+          S.hyp.push({source:S.addSrc.id,target:d.id,correlation:cr,strength:Math.abs(cr),sign:cr>0?'pos':'neg',hypothetical:true,id:'h'+Date.now()});
+          S.addSrc=null;updateSevList();const ae2=getAE();renderImpact('after adding',getNodes(),getCurEdges(),ae2);renderNet();
+        }
+        return;
+      }
+      selectNode(d);
+    })
+    .call(d3.drag()
+      .on('start',(ev,d)=>{if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(ev,d)=>{d.fx=ev.x;d.fy=ev.y;})
+      .on('end',(ev,d)=>{if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+  if(sim)sim.stop();
   const needsCluster=S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1);
   const dynCtrd=getCtrd();
+  const clusterForce=needsCluster?alpha=>{
+    S.gNodes.forEach(n=>{
+      const c=dynCtrd[n.country];if(!c)return;
+      const tx=W/2+c[0]*W*.50,ty=H/2+c[1]*H*.50;
+      n.vx+=(tx-n.x)*alpha*.35;n.vy+=(ty-n.y)*alpha*.35;
+    });
+  }:null;
 
-  // Helper: node color
-  const nodeCol=n=>{
-    if(n.country&&(S.level==='global'||S.level==='cross'))
-      return S.meta?.country_meta[n.country]?.color||CAT[n.category]||'#555566';
-    return CAT[n.category]||'#555566';
-  };
+  sim=d3.forceSimulation(S.gNodes)
+    .alphaDecay(.028)
+    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>500-d.strength*250).strength(.10))
+    .force('charge',d3.forceManyBody().strength(needsCluster?-260:-480))
+    .force('center',d3.forceCenter(W/2,H/2).strength(.04))
+    .force('collide',d3.forceCollide(d=>26+d.centrality*18))
+    .force('x',d3.forceX(W/2).strength(.008)).force('y',d3.forceY(H/2).strength(.008))
+    .force('cluster',clusterForce)
+    .on('tick',()=>{
+      eLines.attr('x1',d=>typeof d.source==='object'?d.source.x:0).attr('y1',d=>typeof d.source==='object'?d.source.y:0)
+            .attr('x2',d=>typeof d.target==='object'?d.target.x:0).attr('y2',d=>typeof d.target==='object'?d.target.y:0);
+      nSel.attr('transform',d=>`translate(${d.x??W/2},${d.y??H/2})`);
+      sevLines.attr('x1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.x??0;})
+              .attr('y1',d=>{const n=S.gNodes.find(n=>n.id===nid(d.source));return n?.y??0;})
+              .attr('x2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.x??0;})
+              .attr('y2',d=>{const n=S.gNodes.find(n=>n.id===nid(d.target));return n?.y??0;});
+    })
+    .on('end',autoZoom);
 
-  if(!net3d){
-    net3d=ForceGraph3D({antialias:true,alpha:true})(el);
-    net3d
-      .width(W).height(H)
-      .backgroundColor('#07080a')
-      .showNavInfo(false)
-      // Node appearance
-      .nodeColor(n=>{
-        if(!selId) return nodeCol(n);
-        if(n.id===selId) return '#ffffff';
-        if(connSel&&connSel.has(n.id)) return nodeCol(n);
-        return '#222228';
-      })
-      .nodeVal(n=>3+n.centrality*12)
-      .nodeLabel(n=>{
-        const iso3=n.country||(S.level==='country'?S.country:'USA');
-        const cMeta=S.meta?.country_meta[n.country];
-        const cT=n.country?`<br><span style="color:${cMeta?.color||'#888'}">${cMeta?.name||CNAME[n.country]||n.country}</span>`:'';
-        return `<div style="font:9px 'DM Mono',monospace;background:rgba(7,8,10,.88);color:#d8dbe6;padding:5px 9px;border:1px solid #23262e;border-radius:3px;line-height:1.7"><b style="color:#eef0f8">${n.label||stripPfx(n.id)}</b><br>Category: ${n.category}${cT}<br>Connections: ${n.degree}</div>`;
-      })
-      .nodeOpacity(n=>{
-        if(!selId) return 0.92;
-        if(n.id===selId) return 1;
-        if(connSel&&connSel.has(n.id)) return 0.85;
-        return 0.12;
-      })
-      .nodeResolution(12)
-      // Link appearance
-      .linkWidth(l=>l.severed?0.4:l.hypothetical?1.0:0.3+l.strength*3.0)
-      .linkColor(l=>{
-        if(l.severed) return 'rgba(255,56,56,0.3)';
-        if(l.hypothetical) return 'rgba(96,200,240,0.7)';
-        const op=(0.08+l.strength*0.78).toFixed(2);
-        return `rgba(200,240,96,${op})`;
-      })
-      .linkOpacity(1)
-      .linkDirectionalParticles(0)
-      // Interactions
-      .onNodeClick((node,ev)=>{
-        if(S.mode==='add'){
-          if(!S.addSrc){S.addSrc=node;renderNet();}
-          else if(S.addSrc.id!==node.id){
-            const ex=getCurEdges().find(e=>{const s=nid(e.source),t=nid(e.target);return(s===S.addSrc.id&&t===node.id)||(s===node.id&&t===S.addSrc.id);});
-            const cr=ex?ex.correlation:.5;
-            S.hyp.push({source:S.addSrc.id,target:node.id,correlation:cr,strength:Math.abs(cr),sign:cr>0?'pos':'neg',hypothetical:true,id:'h'+Date.now()});
-            S.addSrc=null;updateSevList();const ae2=getAE();renderImpact('after adding',getNodes(),getCurEdges(),ae2);renderNet();
-          }
-          return;
-        }
-        // Find matching original node
-        const origNode=nodes.find(nd=>nd.id===node.id)||node;
-        selectNode(origNode);
-      })
-      .onNodeHover(node=>{
-        el.style.cursor=node?'pointer':'default';
-      })
-      .onLinkClick((link,ev)=>{
-        if(S.mode!=='sever')return;
-        if(link.hypothetical){S.hyp=S.hyp.filter(h=>h.id!==link.id);}
-        else{S.severed.add(link.id);}
-        updateSevList();const ae2=getAE();renderImpact('severed',getNodes(),allE,ae2);globePulse();renderNet();
-      })
-      .onBackgroundClick(()=>{if(S.selNode)clearSel();});
-
-    // Forces — set after graphData so simulation is initialised
-    net3d.d3Force('charge').strength(needsCluster?-160:-320);
-    net3d.d3Force('link').distance(l=>300-l.strength*150).strength(.12);
-
-    if(needsCluster){
-      net3d.d3Force('cluster',alpha=>{
-        (net3d.graphData().nodes||[]).forEach(n=>{
-          const c=dynCtrd[n.country];if(!c)return;
-          const tx=c[0]*W*.40,ty=c[1]*H*.40,tz=0;
-          n.vx=(n.vx||0)+(tx-n.x)*alpha*.25;
-          n.vy=(n.vy||0)+(ty-n.y)*alpha*.25;
-          n.vz=(n.vz||0)+(tz-(n.z||0))*alpha*.25;
-        });
-      });
-    }
-  } else {
-    // Update node/link appearance callbacks on re-render (selection changed etc.)
-    net3d
-      .nodeColor(n=>{
-        if(!selId) return nodeCol(n);
-        if(n.id===selId) return '#ffffff';
-        if(connSel&&connSel.has(n.id)) return nodeCol(n);
-        return '#222228';
-      })
-      .nodeOpacity(n=>{
-        if(!selId) return 0.92;
-        if(n.id===selId) return 1;
-        if(connSel&&connSel.has(n.id)) return 0.85;
-        return 0.12;
-      });
-  }
-
-  net3d.graphData({nodes:gfNodes,links:[...gfLinks,...sevLinks]});
-  if(!selId) setTimeout(()=>net3d&&net3d.zoomToFit(700,80),900);
-
-  // Status readout
   const parts=[];
   if(S.severed.size)parts.push(`<span style="color:var(--sv)">${S.severed.size} severed</span>`);
   if(S.hyp.length)parts.push(`<span style="color:var(--hy)">${S.hyp.length} hyp</span>`);
@@ -1091,16 +1121,13 @@ function renderNet(){
   if(S.yE>2023)parts.push(`<span style="color:var(--af)">forecast window</span>`);
   $('rdout').innerHTML=parts.join(' · ');
 
-  // Country legend
   const legendEl=$('country-legend');
   if(legendEl&&S.meta){
-    const legActive=(S.level==='global'||S.level==='cross')?S.meta.countries:
-      (S.level==='country'&&S.countries.length>1)?S.countries:
-      S.level==='country'?S.countries:[];
+    const legActive=(S.level==='global'||S.level==='cross')?S.meta.countries:(S.level==='country'&&S.countries.length>1)?S.countries:S.level==='country'?S.countries:S.level==='country'?S.countries:[];
     if(legActive.length>0){
       legendEl.innerHTML=legActive.map(iso3=>{const m=S.meta.country_meta[iso3];return`<div class="li"><div class="ll" style="background:${m?.color||'#888'}"></div>${m?.name||CNAME[iso3]||iso3}</div>`;}).join('');
-      legendEl.style.borderTop='1px solid var(--b1)';legendEl.style.marginTop='4px';legendEl.style.paddingTop='4px';
-    } else {legendEl.innerHTML='';}
+      legendEl.style.cssText='border-top:1px solid var(--b1);margin-top:4px;padding-top:4px';
+    } else legendEl.innerHTML='';
   }
 }
 
@@ -1240,7 +1267,9 @@ function globePulse(){
 }
 
 function resetNet3D(){
-  if(net3d){net3d.cameraPosition({x:0,y:0,z:600},{x:0,y:0,z:0},500);setTimeout(()=>net3d&&net3d.zoomToFit(500,80),520);}
+  _rd3.rx=0;_rd3.ry=0;
+  const svgEl=$('nsvg');if(svgEl)svgEl.style.transform='';
+  autoZoom();
 }
 
 // ── SHOCK PROPAGATION ──
@@ -1334,7 +1363,7 @@ function initDragHandles(){
     else{const dy=sY-e.clientY;$(el).style.height=Math.max(60,Math.min(450,sW+dy))+'px';}
     if(which?.el==='pg')resizeGlobe();
   });
-  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;if(net3d){const pn=$('pn');if(pn)net3d.width(pn.offsetWidth).height(pn.offsetHeight);}renderNet();resizeGlobe();}});
+  document.addEventListener('mouseup',()=>{if(which){$(which.id).classList.remove('active');which=null;renderNet();resizeGlobe();}});
 }
 
 // ── INIT ──
@@ -1354,10 +1383,7 @@ async function init(){
   }catch(err){$('loader-status').textContent='Error: '+err.message;console.error(err);}
 }
 init();
-window.addEventListener('resize',()=>{
-  if(net3d){const pn=$('pn');if(pn)net3d.width(pn.offsetWidth).height(pn.offsetHeight);}
-  renderNet();
-});
+window.addEventListener('resize',()=>{renderNet();});
 </script>
 </body>
 </html>
