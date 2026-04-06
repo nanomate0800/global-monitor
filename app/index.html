@@ -113,7 +113,7 @@ tr.hi td{color:var(--tx);}
 .rc-sig.w{color:var(--warn);}
 .rc-arrow{font-size:9px;}
 .rc-empty{font-size:8px;color:var(--mu);font-style:italic;}
-#gcv{flex:1;position:relative;overflow:hidden;cursor:grab;}
+#gcv{flex:1;min-height:200px;position:relative;overflow:hidden;cursor:grab;}
 #gcv:active{cursor:grabbing;}
 /* globe.gl manages canvas size internally — do NOT override width/height */
 #gcv canvas{display:block;}
@@ -316,8 +316,7 @@ tr.hi td{color:var(--tx);}
   <div id="ccol">
     <div id="pn">
       <div class="plabel" id="net-label">GLOBAL NETWORK</div>
-      <div class="net-instr">scroll: zoom · drag: pan · right-drag: 3D tilt<br>SEVER: click edge · ADD: click source then target</div>
-      <div id="net-reset-3d" onclick="resetNet3D()" title="Reset 3D perspective and zoom" style="position:absolute;top:8px;right:95px;font-size:7px;letter-spacing:.10em;color:var(--mu);cursor:pointer;padding:3px 7px;border:1px solid var(--b2);border-radius:2px;z-index:4;transition:all .12s;user-select:none" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--mu)'">⊹ RESET VIEW</div>
+      <div class="net-instr">scroll: zoom · drag: pan · right-drag: 3D tilt<br>SEVER: click edge · ADD: click source then target<br><span id="net-reset-3d" onclick="resetNet3D();event.stopPropagation()" title="Reset 3D perspective and zoom" style="display:inline-block;margin-top:3px;font-size:7px;letter-spacing:.10em;color:var(--mu);cursor:pointer;padding:2px 6px;border:1px solid var(--b2);border-radius:2px;transition:all .12s;user-select:none;pointer-events:all" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--mu)'">⊹ RESET VIEW</span></div>
       <svg id="nsvg"></svg>
       <div class="legend">
         <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>|r| strong</div>
@@ -978,7 +977,13 @@ function renderNet(){
     vx:existing[n.id]?.vx??0,vy:existing[n.id]?.vy??0
   }));
   const byId={};S.gNodes.forEach(n=>byId[n.id]=n);
-  const aeR=ae.map(e=>({...e,source:byId[nid(e.source)]??nid(e.source),target:byId[nid(e.target)]??nid(e.target)}));
+  // Resolve source/target to node objects; drop edges where either endpoint isn't a known node
+  // (prevents d3.forceLink from throwing "node not found" on cross-country edges whose
+  //  indicator doesn't appear in that country's within-country correlation data)
+  const aeR=ae.map(e=>({...e,
+    source:byId[nid(e.source)]??null,
+    target:byId[nid(e.target)]??null
+  })).filter(e=>e.source&&e.target);
 
   const svg=d3.select('#nsvg');svg.selectAll('*').remove();
   const zg=svg.append('g').attr('class','zg');
@@ -1135,8 +1140,10 @@ function renderNet(){
 let gWorld=null,gArcData=[];
 function resizeGlobe(){
   if(!gWorld)return;
-  const el=$('gcv');
-  gWorld.width(el.clientWidth).height(el.clientHeight);
+  const el=$('gcv'),pg=$('pg');
+  const w=el.offsetWidth||pg?.offsetWidth||300;
+  const h=el.offsetHeight||pg?.offsetHeight||400;
+  if(w>0&&h>0)gWorld.width(w).height(h);
 }
 function globeResetView(){if(gWorld)gWorld.pointOfView({lat:20,lng:0,altitude:2.5},600);}
 
@@ -1145,60 +1152,61 @@ function initGlobe(){
   if(!el||!S.meta)return;
 
   // ── globe.gl ──
-  // Ensure the container has real pixel dimensions before WebGL init
-  const W=el.offsetWidth||300,H=el.offsetHeight||600;
-  if(!el.style.height)el.style.height=H+'px';
-  gWorld=Globe()(el);
-  gWorld
-    .width(W).height(H)
-    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-    .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundColor('rgba(7,8,10,1)')
-    .showAtmosphere(true)
-    .atmosphereColor('#3a6ca8')
-    .atmosphereAltitude(0.18)
-    // Country capital markers
-    .pointsData(Object.entries(S.meta.country_meta).map(([iso3,m])=>({...m,iso3})))
-    .pointLat('lat').pointLng('lon')
-    .pointColor(d=>d.color)
-    .pointAltitude(0.02)
-    .pointRadius(0.6)
-    .pointLabel(d=>`<div style="font:10px monospace;color:${d.color};background:rgba(0,0,0,.7);padding:3px 6px;border-radius:2px">${d.name}</div>`)
-    // City dots
-    .labelsData(Object.entries(S.meta.cities).map(([city,c])=>({...c,city})))
-    .labelLat('lat').labelLng('lon')
-    .labelText(d=>'·')
-    .labelColor(d=>S.meta.country_meta[d.iso3]?.color||'#888')
-    .labelSize(0.4)
-    .labelAltitude(0.002)
-    // Arc layer (configured later by globeCountryMode / globeCityMode)
-    .arcsData([])
-    .arcStartLat('startLat').arcStartLng('startLng')
-    .arcEndLat('endLat').arcEndLng('endLng')
-    .arcColor('colors')
-    .arcStroke(d=>0.3+d.strength*0.7)
-    .arcDashLength(1)
-    .arcDashGap(0)
-    .arcDashInitialGap(0)
-    .arcDashAnimateTime(0)
-    .arcAltitudeAutoScale(0.35)
-    .arcLabel(d=>`<div style="font:9px monospace;background:rgba(0,0,0,.75);color:#fff;padding:3px 7px;border-radius:2px">${d.label||''}</div>`)
-    .pointOfView({lat:20,lng:10,altitude:2.4});
+  // Use parent (#pg) height as the authoritative height since #gcv{flex:1}
+  // may report 0 before globe.gl forces a canvas render.
+  const pg=$('pg');
+  const W=el.offsetWidth||pg?.offsetWidth||300;
+  const H=pg?.offsetHeight||window.innerHeight-42||500;
 
-  // Auto-rotate
-  gWorld.controls().autoRotate=true;
-  gWorld.controls().autoRotateSpeed=0.4;
-  gWorld.controls().enableDamping=true;
+  try{
+    gWorld=Globe()(el);
+    gWorld
+      .width(W).height(H)
+      .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
+      .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+      .backgroundColor('rgba(7,8,10,1)')
+      .showAtmosphere(true)
+      .atmosphereColor('#3a6ca8')
+      .atmosphereAltitude(0.18)
+      // Country capital markers
+      .pointsData(Object.entries(S.meta.country_meta).map(([iso3,m])=>({...m,iso3})))
+      .pointLat('lat').pointLng('lon')
+      .pointColor(d=>d.color)
+      .pointAltitude(0.02)
+      .pointRadius(0.6)
+      .pointLabel(d=>`<div style="font:10px monospace;color:${d.color};background:rgba(0,0,0,.7);padding:3px 6px;border-radius:2px">${d.name}</div>`)
+      // City dots
+      .labelsData(Object.entries(S.meta.cities).map(([city,c])=>({...c,city})))
+      .labelLat('lat').labelLng('lon')
+      .labelText(d=>'·')
+      .labelColor(d=>S.meta.country_meta[d.iso3]?.color||'#888')
+      .labelSize(0.4)
+      .labelAltitude(0.002)
+      // Arc layer (configured later by globeCountryMode / globeCityMode)
+      .arcsData([])
+      .arcStartLat('startLat').arcStartLng('startLng')
+      .arcEndLat('endLat').arcEndLng('endLng')
+      .arcColor('colors')
+      .arcStroke(d=>0.3+d.strength*0.7)
+      .arcDashLength(1)
+      .arcDashGap(0)
+      .arcDashInitialGap(0)
+      .arcDashAnimateTime(0)
+      .arcAltitudeAutoScale(0.35)
+      .arcLabel(d=>`<div style="font:9px monospace;background:rgba(0,0,0,.75);color:#fff;padding:3px 7px;border-radius:2px">${d.label||''}</div>`)
+      .pointOfView({lat:20,lng:10,altitude:2.4});
 
-  // Respond to resize via ResizeObserver (fixes the divider expand issue)
-  const ro=new ResizeObserver(()=>{
-    const w=el.offsetWidth,h=el.offsetHeight;
-    if(w>0&&h>0){
-      el.style.height='';  // let flex control it after first render
-      gWorld.width(w).height(h);
-    }
-  });
-  ro.observe(el);
+    // Auto-rotate
+    try{
+      const ctrl=gWorld.controls();
+      if(ctrl){ctrl.autoRotate=true;ctrl.autoRotateSpeed=0.4;ctrl.enableDamping=true;}
+    }catch(e){console.warn('globe controls:',e);}
+
+    // Respond to resize via ResizeObserver
+    new ResizeObserver(resizeGlobe).observe(el);
+    // Trigger a resize after layout settles to correct any initial 0-height
+    setTimeout(resizeGlobe,100);
+  }catch(err){console.error('Globe init failed:',err);}
 }
 
 function globeCountryMode(){
