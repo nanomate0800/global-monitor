@@ -187,7 +187,7 @@ tr.hi td{color:var(--tx);}
 /* ── GLOBE FIX ── */
 #pg{width:300px;min-width:180px;background:#000;position:relative;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;}
 /* ── SHOCK PANEL ── */
-.shock-panel{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(7,8,10,.96);z-index:20;display:none;flex-direction:column;border-left:2px solid var(--sv);}
+.shock-panel{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(7,8,10,.96);z-index:20;display:none;flex-direction:column;border-left:2px solid var(--b3);}
 .shock-panel.open{display:flex;}
 .shock-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--b1);flex-shrink:0;}
 .shock-title{font-family:'Instrument Serif',serif;font-size:13px;color:var(--wh);flex:1;}
@@ -279,7 +279,7 @@ tr.hi td{color:var(--tx);}
     </div>
     <div class="sec" id="node-detail">
       <div class="nd-back" onclick="clearSel()">← nodes</div>
-      <div onclick="openShock()" style="display:inline-flex;align-items:center;gap:5px;font-size:8px;color:var(--sv);cursor:pointer;margin-bottom:8px;padding:3px 8px;border:1px solid var(--sv);border-radius:2px;transition:all .1s" onmouseover="this.style.background='rgba(255,56,56,.06)'" onmouseout="this.style.background=''">SCENARIO TEST</div>
+      <div onclick="openShock()" style="display:inline-flex;align-items:center;gap:5px;font-size:8px;color:var(--mu2);cursor:pointer;margin-bottom:8px;padding:3px 8px;border:1px solid var(--b2);border-radius:2px;transition:all .1s" onmouseover="this.style.borderColor='var(--mu2)';this.style.color='var(--tx)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--mu2)'">SCENARIO TEST</div>
       <div class="nd-name" id="nd-name"></div>
       <div class="nd-cat"  id="nd-cat"></div>
       <svg class="sparkline" id="nd-spark"></svg>
@@ -319,10 +319,12 @@ tr.hi td{color:var(--tx);}
       <div class="net-instr">scroll: zoom · drag: pan<br>SEVER: click edge · ADD: click source then target</div>
       <svg id="nsvg"></svg>
       <div class="legend">
-        <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>|r| strong</div>
-        <div class="li"><div class="ll" style="background:#c8f060;opacity:.50;height:2px"></div>|r| mid</div>
-        <div class="li"><div class="ll" style="background:#c8f060;opacity:.18;height:1px"></div>|r| threshold</div>
-        <div class="li"><div class="ll" style="background:var(--sv);opacity:.45"></div>severed</div>
+        <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>positive (strong)</div>
+        <div class="li"><div class="ll" style="background:#c8f060;opacity:.35;height:1.5px"></div>positive (weak)</div>
+        <div class="li"><div class="ll" style="background:#f07060;opacity:.92;height:3px"></div>negative (strong)</div>
+        <div class="li"><div class="ll" style="background:#f07060;opacity:.35;height:1.5px"></div>negative (weak)</div>
+        <div class="li"><div class="ll" style="background:#eef0f8;opacity:.6;height:1px;border-top:1px dotted #eef0f8"></div>severed</div>
+        <div class="li"><div class="ll" style="background:#eef0f8;opacity:.9;height:1.5px"></div>added</div>
         <div style="border-top:1px solid var(--b1);margin-top:4px;padding-top:4px" id="country-legend"></div>
       </div>
       <div id="rdout"></div>
@@ -415,10 +417,13 @@ function nid(n){return typeof n==='object'?n.id:n;}
 function stripPfx(id){const i=id.indexOf('::');return i>=0?id.slice(i+2):id;}
 // Get country from prefixed id
 function pfxCountry(id){const i=id.indexOf('::');return i>=0?id.slice(0,i):null;}
-// Single-color edges: lime green, varying opacity and width by |r|
-function eCol(r){return '#c8f060';}
-function eOp(s,p){return p?.06+(s)*.42:.08+(s)*.78;}
-function eW(s,p){return p?.3+(s)*.8:.3+(s)*3.8;}
+// Edge color by sign: positive = lime, negative = coral
+function eCol(corr){return corr>=0?'#c8f060':'#f07060';}
+// Edge opacity: strong contrast between tiers using power curve
+// threshold (0.35) → ~0.08, mid (0.6) → ~0.35, strong (0.9) → ~0.90
+function eOp(s,p){if(p)return 0.06+Math.pow(s,1.4)*.36;return Math.pow(Math.max(0,(s-.28)/.72),1.6)*.92+.06;}
+// Edge width: thin at threshold, clearly heavier at mid, thick at strong
+function eW(s,p){if(p)return 0.5+s*.6;return 0.5+Math.pow(s,1.2)*3.8;}
 
 // ── DATA LOADING ──
 async function loadData(prog){
@@ -996,18 +1001,18 @@ function renderNet(){
 
   const gSev=zg.append('g'),gE=zg.append('g'),gN=zg.append('g');
 
-  // Severed ghosts
+  // Severed ghosts — white thin dotted
   const sevLines=gSev.selectAll('line').data(sevV).join('line')
-    .attr('stroke','var(--sv)').attr('stroke-width',.8).attr('stroke-dasharray','4,4').attr('opacity',.18);
+    .attr('stroke','#eef0f8').attr('stroke-width',.7).attr('stroke-dasharray','2,4').attr('opacity',.25);
 
   // Edges
   const eLines=gE.selectAll('line').data(aeR).join('line')
-    .attr('stroke',d=>d.hypothetical?'var(--hy)':'#c8f060')
-    .attr('stroke-width',d=>d.hypothetical?1.2:0.3+d.strength*3.0)
-    .attr('stroke-dasharray',d=>d.hypothetical?'5,3':null)
+    .attr('stroke',d=>d.hypothetical?'#eef0f8':eCol(d.correlation))
+    .attr('stroke-width',d=>d.hypothetical?1.5:eW(d.strength,d.projected))
+    .attr('stroke-dasharray',d=>d.hypothetical?null:null)
     .attr('opacity',d=>{
-      if(d.hypothetical)return.8;
-      const op=0.08+d.strength*0.78;
+      if(d.hypothetical)return.9;
+      const op=eOp(d.strength,d.projected);
       if(selId){const s=nid(d.source),t=nid(d.target);return(s===selId||t===selId)?op:.03;}
       return op;
     })
@@ -1077,18 +1082,19 @@ function renderNet(){
   const clusterForce=needsCluster?alpha=>{
     S.gNodes.forEach(n=>{
       const c=dynCtrd[n.country];if(!c)return;
-      const tx=W/2+c[0]*W*.50,ty=H/2+c[1]*H*.50;
-      n.vx+=(tx-n.x)*alpha*.35;n.vy+=(ty-n.y)*alpha*.35;
+      // spread clusters across 72% of canvas width/height — keeps country groups visually separated
+      const tx=W/2+c[0]*W*.72,ty=H/2+c[1]*H*.68;
+      n.vx+=(tx-n.x)*alpha*.55;n.vy+=(ty-n.y)*alpha*.55;
     });
   }:null;
 
   sim=d3.forceSimulation(S.gNodes)
-    .alphaDecay(.028)
-    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>500-d.strength*250).strength(.10))
-    .force('charge',d3.forceManyBody().strength(needsCluster?-260:-480))
-    .force('center',d3.forceCenter(W/2,H/2).strength(.04))
-    .force('collide',d3.forceCollide(d=>26+d.centrality*18))
-    .force('x',d3.forceX(W/2).strength(.008)).force('y',d3.forceY(H/2).strength(.008))
+    .alphaDecay(.022)
+    .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical)).id(d=>d.id).distance(d=>180-d.strength*80).strength(.08))
+    .force('charge',d3.forceManyBody().strength(needsCluster?-180:-420))
+    .force('center',d3.forceCenter(W/2,H/2).strength(.01))
+    .force('collide',d3.forceCollide(d=>22+d.centrality*14))
+    .force('x',d3.forceX(W/2).strength(.004)).force('y',d3.forceY(H/2).strength(.004))
     .force('cluster',clusterForce)
     .on('tick',()=>{
       eLines.attr('x1',d=>typeof d.source==='object'?d.source.x:0).attr('y1',d=>typeof d.source==='object'?d.source.y:0)
@@ -1284,9 +1290,9 @@ let shockState={dir:'pos',mag:2};
 function shockDir(d){
   shockState.dir=d;
   $('shock-dir-pos').style.borderColor=d==='pos'?'var(--ph)':'var(--b2)';
-  $('shock-dir-neg').style.borderColor=d==='neg'?'var(--nh)':'var(--b2)';
+  $('shock-dir-neg').style.borderColor=d==='neg'?'var(--ph)':'var(--b2)';
   $('shock-dir-pos').style.color=d==='pos'?'var(--ph)':'var(--mu)';
-  $('shock-dir-neg').style.color=d==='neg'?'var(--nh)':'var(--mu)';
+  $('shock-dir-neg').style.color=d==='neg'?'var(--ph)':'var(--mu)';
   runShock();
 }
 function openShock(){
@@ -1308,7 +1314,9 @@ function runShock(){
   const srcStd=fc&&fc.values&&fc.values.length>3?_std(fc.values):1;
   const shockAmt=(shockState.dir==='pos'?1:-1)*mag*srcStd;
   const srcMean=fc&&fc.values?fc.values.reduce((a,b)=>a+b,0)/fc.values.length:0;
-  $('shock-desc').textContent=`Scenario: "${lbl}" ${shockState.dir==='pos'?'increases':'decreases'} by ${mag}σ (${shockAmt>0?'+':''}${shockAmt.toFixed(2)} from mean ${srcMean.toFixed(1)}). Downstream ripple via correlation chain, up to 4 hops.`;
+  // σ here = standard deviation of this indicator's own historical data
+  // INCREASE/DECREASE sets the direction of the initial event; downstream signs depend on each correlation's own sign (r)
+  $('shock-desc').textContent=`If "${lbl}" ${shockState.dir==='pos'?'increases':'decreases'} by ${mag} of its own historical standard deviations (${shockAmt>0?'+':''}${shockAmt.toFixed(2)} from its mean of ${srcMean.toFixed(1)}), each connected indicator shifts by: impact × r. Sorted by magnitude.`;
   // BFS through correlation graph, attenuate by r at each hop
   const ae=getAE();
   const adj={};
@@ -1350,7 +1358,7 @@ function runShock(){
       <div class="shock-node-name" title="${r.path.join(' > ')}">${cLabel}${r.label.substring(0,28)}<div style="font-size:7px;color:var(--mu);margin-top:1px">${pathStr.substring(0,42)}</div></div>
       <div class="shock-bar-wrap"><div class="shock-bar" style="width:${pct}%;background:${clr};opacity:.7"></div></div>
       <div class="shock-sigma" style="color:${clr}">${r.sigmas>0?'+':''}${r.sigmas.toFixed(2)}σ</div>
-      <div style="font-size:7px;color:var(--mu);min-width:22px;text-align:right">h${r.hop}</div>
+      <div style="font-size:7px;color:var(--mu);min-width:42px;text-align:right">${r.hop===1?'direct':r.hop+' hops'}</div>
     </div>`;
   }).join('');
   if(!sorted.length)$('shock-body').innerHTML='<div style="font-size:9px;color:var(--mu);padding:12px 0">No downstream connections above threshold.</div>';
