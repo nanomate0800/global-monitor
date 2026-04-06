@@ -11,7 +11,7 @@
 :root{
   --bg:#07080a;--s1:#0c0d10;--s2:#111318;--s3:#171a1f;
   --b1:#1a1d23;--b2:#23262e;--b3:#2e3240;
-  --tx:#d8dbe6;--mu:#474b59;--mu2:#686d80;--wh:#eef0f8;
+  --tx:#d8dbe6;--mu:#6b7080;--mu2:#9ba0b5;--wh:#eef0f8;
   --ph:#c8f060;--pm:#7ab830;--nh:#f06080;--nm:#803040;
   --sv:#ff3838;--hy:#60c8f0;--af:#f0a030;
   --danger:#ff4444;--warn:#f0a030;
@@ -252,7 +252,7 @@ tr.hi td{color:var(--tx);}
     <div class="hmbtn"    id="m-sever"   onclick="setMode('sever',this)"><div class="dot"></div>SEVER</div>
     <div class="hmbtn"    id="m-add"     onclick="setMode('add',this)"><div class="dot"></div>ADD</div>
   </div>
-  <div class="htoggle" onclick="globeResetView()" title="Re-centre globe">⊙ GLOBE</div>
+  <div class="htoggle" onclick="globeResetView()" title="Re-centre globe">GLOBE</div>
   <div class="htoggle" id="font-toggle" onclick="cycleFontSize()" title="Cycle text size" style="letter-spacing:.06em">Aa</div>
   <div class="hmeta"><span id="hmeta">loading...</span></div>
 </header>
@@ -279,7 +279,7 @@ tr.hi td{color:var(--tx);}
     </div>
     <div class="sec" id="node-detail">
       <div class="nd-back" onclick="clearSel()">← nodes</div>
-      <div onclick="openShock()" style="display:inline-flex;align-items:center;gap:5px;font-size:8px;color:var(--sv);cursor:pointer;margin-bottom:8px;padding:3px 8px;border:1px solid var(--sv);border-radius:2px;transition:all .1s" onmouseover="this.style.background='rgba(255,56,56,.06)'" onmouseout="this.style.background=''">⚡ WHAT IF THIS SHOCKS?</div>
+      <div onclick="openShock()" style="display:inline-flex;align-items:center;gap:5px;font-size:8px;color:var(--sv);cursor:pointer;margin-bottom:8px;padding:3px 8px;border:1px solid var(--sv);border-radius:2px;transition:all .1s" onmouseover="this.style.background='rgba(255,56,56,.06)'" onmouseout="this.style.background=''">SCENARIO TEST</div>
       <div class="nd-name" id="nd-name"></div>
       <div class="nd-cat"  id="nd-cat"></div>
       <svg class="sparkline" id="nd-spark"></svg>
@@ -294,7 +294,7 @@ tr.hi td{color:var(--tx);}
       <div id="sev-list"></div>
     </div>
     <div class="sec" style="padding:6px 0;">
-      <div id="reset-btn" class="reset-btn" onclick="restoreAll()" title="Reset all severed / hypothetical edges and recalculate R²">↺ RESET RELATIONSHIPS</div>
+      <div id="reset-btn" class="reset-btn" onclick="restoreAll()" title="Reset all severed / hypothetical edges and recalculate R²">RESET RELATIONSHIPS</div>
       <div style="font-size:7px;color:var(--mu);padding:0 12px 2px;line-height:1.6" id="r2-note">R² recalculates across all nodes when edges change.</div>
     </div>
     <div class="sec">
@@ -316,7 +316,7 @@ tr.hi td{color:var(--tx);}
   <div id="ccol">
     <div id="pn">
       <div class="plabel" id="net-label">GLOBAL NETWORK</div>
-      <div class="net-instr">scroll: zoom · drag: pan · right-drag: 3D tilt<br>SEVER: click edge · ADD: click source then target<br><span id="net-reset-3d" onclick="resetNet3D();event.stopPropagation()" title="Reset 3D perspective and zoom" style="display:inline-block;margin-top:3px;font-size:7px;letter-spacing:.10em;color:var(--mu);cursor:pointer;padding:2px 6px;border:1px solid var(--b2);border-radius:2px;transition:all .12s;user-select:none;pointer-events:all" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--mu)'">⊹ RESET VIEW</span></div>
+      <div class="net-instr">scroll: zoom · drag: pan<br>SEVER: click edge · ADD: click source then target</div>
       <svg id="nsvg"></svg>
       <div class="legend">
         <div class="li"><div class="ll" style="background:#c8f060;opacity:.92;height:3px"></div>|r| strong</div>
@@ -329,18 +329,19 @@ tr.hi td{color:var(--tx);}
       <!-- SHOCK PANEL -->
       <div id="shock-panel" class="shock-panel">
         <div class="shock-hdr">
-          <div class="shock-title">⚡ Shock Propagation</div>
+          <div class="shock-title">Event Propagation</div>
           <div style="font-size:8px;color:var(--mu)" id="shock-src-lbl"></div>
-          <div class="shock-close" onclick="closeShock()">✕ close</div>
+          <div class="shock-close" onclick="closeShock()">close</div>
         </div>
         <div class="shock-ctrl">
-          <span class="shock-lbl">SHOCK MAGNITUDE:</span>
+          <span class="shock-lbl">SCENARIO INTENSITY:</span>
           <input type="range" style="flex:1;max-width:120px;height:2px;accent-color:var(--sv);cursor:pointer" id="shock-mag" min="1" max="5" step="0.5" value="2" oninput="runShock()">
           <span class="shock-val-lbl" id="shock-mag-lbl">+2σ</span>
-          <span class="shock-lbl" style="margin-left:8px">DIRECTION:</span>
-          <div id="shock-dir-pos" onclick="shockDir('pos')" style="font-size:8px;padding:2px 7px;border:1px solid var(--ph);color:var(--ph);border-radius:2px;cursor:pointer;user-select:none">▲ UP</div>
-          <div id="shock-dir-neg" onclick="shockDir('neg')" style="font-size:8px;padding:2px 7px;border:1px solid var(--b2);color:var(--mu);border-radius:2px;cursor:pointer;user-select:none">▼ DOWN</div>
+          <span class="shock-lbl" style="margin-left:8px">EVENT:</span>
+          <div id="shock-dir-pos" onclick="shockDir('pos')" style="font-size:8px;padding:2px 7px;border:1px solid var(--ph);color:var(--ph);border-radius:2px;cursor:pointer;user-select:none">INCREASE</div>
+          <div id="shock-dir-neg" onclick="shockDir('neg')" style="font-size:8px;padding:2px 7px;border:1px solid var(--b2);color:var(--mu);border-radius:2px;cursor:pointer;user-select:none">DECREASE</div>
         </div>
+        <div style="padding:4px 14px;font-size:7px;color:var(--mu);border-bottom:1px solid var(--b1);flex-shrink:0;line-height:1.6">1σ = one standard deviation of this indicator's historical range · Results sorted by impact magnitude, not temporal order</div>
         <div style="padding:6px 14px;font-size:8px;color:var(--mu);border-bottom:1px solid var(--b1);flex-shrink:0" id="shock-desc"></div>
         <div class="shock-body" id="shock-body"></div>
       </div>
@@ -397,14 +398,14 @@ const S={level:'global',countries:['USA'],mode:'explore',thr:.35,sign:'both',yS:
 Object.defineProperty(S,'country',{get(){return S.countries[0]||'USA'},set(v){S.countries=[v];}});
 
 const $=id=>document.getElementById(id);
-const _fontSizes=['10px','11px','13px','15px'];
+const _fontScales=[0.85,1,1.15,1.3];
 let _fsIdx=1;
 function cycleFontSize(){
-  _fsIdx=(_fsIdx+1)%_fontSizes.length;
-  document.documentElement.style.setProperty('--fs',_fontSizes[_fsIdx]);
+  _fsIdx=(_fsIdx+1)%_fontScales.length;
+  document.body.style.zoom=_fontScales[_fsIdx];
   const lbl=['S','M','L','XL'][_fsIdx];
-  $('font-toggle').textContent=lbl;
-  $('font-toggle').title='Text size: '+lbl;
+  $('font-toggle').textContent='Aa';
+  $('font-toggle').title='Text size: '+lbl+' ('+Math.round(_fontScales[_fsIdx]*100)+'%)';
 }
 const tip=$('tip');
 function showTip(h,e){tip.innerHTML=h;tip.style.display='block';const x=e.clientX,y=e.clientY,W=window.innerWidth;tip.style.left=(x+16>W-250?x-246:x+16)+'px';tip.style.top=(y-6)+'px';}
@@ -552,7 +553,7 @@ async function onYear(){
   if(e<=s)$('ys-e').value=Math.min(s+1,2038);
   S.yS=parseInt($('ys-s').value);S.yE=parseInt($('ys-e').value);
   $('yv-s').textContent=S.yS;$('yv-e').textContent=S.yE;
-  const isFC=S.yE>2023;$('fc-badge').textContent=isFC?'◈ FORECAST':'';
+  const isFC=S.yE>2023;$('fc-badge').textContent=isFC?'FORECAST':'';
   // Reload correlations for selected + GLOBAL for the new year window
   for(const iso3 of [...S.countries,'GLOBAL']){
     await loadCorr(iso3,S.yS,S.yE);
@@ -942,7 +943,7 @@ function updateSevList(){
 function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();updateResetBtn();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
 
 // ── NETWORK ──
-let sim=null,netZoom=null,_rd3={rx:0,ry:0};
+let sim=null,netZoom=null;
 
 function autoZoom(){
   const svgEl=$('nsvg');if(!netZoom||!svgEl)return;
@@ -988,27 +989,9 @@ function renderNet(){
   const svg=d3.select('#nsvg');svg.selectAll('*').remove();
   const zg=svg.append('g').attr('class','zg');
 
-  // 3D perspective via CSS on the svg element
-  svgEl.style.transform=`perspective(1100px) rotateX(${_rd3.rx}deg) rotateY(${_rd3.ry}deg)`;
-  svgEl.style.transformOrigin='50% 50%';
-
   netZoom=d3.zoom().scaleExtent([.05,8]).on('zoom',ev=>zg.attr('transform',ev.transform));
   svg.call(netZoom);
 
-  // Right-drag = 3D rotate
-  let rdDrag=false,rdPrev={x:0,y:0};
-  svgEl.addEventListener('contextmenu',e=>e.preventDefault());
-  svgEl.addEventListener('mousedown',e=>{if(e.button===2){rdDrag=true;rdPrev={x:e.clientX,y:e.clientY};e.preventDefault();}});
-  svgEl.addEventListener('mousemove',e=>{
-    if(!rdDrag)return;
-    _rd3.ry+=( e.clientX-rdPrev.x)*.35;
-    _rd3.rx-=(e.clientY-rdPrev.y)*.35;
-    _rd3.rx=Math.max(-70,Math.min(70,_rd3.rx));
-    rdPrev={x:e.clientX,y:e.clientY};
-    svgEl.style.transform=`perspective(1100px) rotateX(${_rd3.rx}deg) rotateY(${_rd3.ry}deg)`;
-  });
-  svgEl.addEventListener('mouseup',e=>{if(e.button===2)rdDrag=false;});
-  svgEl.addEventListener('mouseleave',()=>rdDrag=false);
   svg.on('click',()=>{if(S.selNode)clearSel();});
 
   const gSev=zg.append('g'),gE=zg.append('g'),gN=zg.append('g');
@@ -1194,7 +1177,29 @@ function initGlobe(){
       .arcDashAnimateTime(0)
       .arcAltitudeAutoScale(0.35)
       .arcLabel(d=>`<div style="font:9px monospace;background:rgba(0,0,0,.75);color:#fff;padding:3px 7px;border-radius:2px">${d.label||''}</div>`)
-      .pointOfView({lat:20,lng:10,altitude:2.4});
+      .pointOfView({lat:20,lng:10,altitude:2.4})
+    // Country name HTML labels
+    .htmlElementsData(Object.entries(S.meta.country_meta).map(([iso3,m])=>({...m,iso3})))
+    .htmlLat('lat').htmlLng('lon')
+    .htmlAltitude(0.04)
+    .htmlElement(d=>{
+      const el=document.createElement('div');
+      el.style.cssText=`color:${d.color};font:700 10px "DM Mono",monospace;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000,0 0 8px #000,0 0 12px #000;letter-spacing:.05em;`;
+      el.textContent=d.name;
+      return el;
+    })
+    // Click country dot → switch relational map to that country
+    .onPointClick(point=>{
+      if(!point||!point.iso3)return;
+      S.countries=[point.iso3];
+      setLevel('country');
+    })
+    // Click arc → switch relational map to those two countries
+    .onArcClick(arc=>{
+      if(!arc)return;
+      const cs=[arc.country_a,arc.country_b].filter(Boolean);
+      if(cs.length===2){S.countries=cs;setLevel('country');}
+    });
 
     // Auto-rotate
     try{
@@ -1223,7 +1228,7 @@ function globeCountryMode(){
       const pos=e.correlation>0;const op=0.28+e.strength*0.50;
       const c1=pos?`rgba(200,240,96,${op})`:`rgba(240,96,128,${op})`;
       const c2=pos?`rgba(200,240,96,${(op*.35).toFixed(2)})`:`rgba(240,96,128,${(op*.35).toFixed(2)})`;
-      arcs.push({startLat:ca.lat,startLng:ca.lon,endLat:cb.lat,endLng:cb.lon,colors:[c1,c2],strength:e.strength,label:`${e.country_a}↔${e.country_b} r=${e.correlation?.toFixed(2)||''}`});
+      arcs.push({startLat:ca.lat,startLng:ca.lon,endLat:cb.lat,endLng:cb.lon,colors:[c1,c2],strength:e.strength,country_a:e.country_a,country_b:e.country_b,label:`${e.country_a} — ${e.country_b} r=${e.correlation?.toFixed(2)||''}`});
     });
   }
   // Extra highlight arcs for selected countries
@@ -1274,12 +1279,6 @@ function globePulse(){
   if(gWorld)gWorld.arcsData(arcs);
 }
 
-function resetNet3D(){
-  _rd3.rx=0;_rd3.ry=0;
-  const svgEl=$('nsvg');if(svgEl)svgEl.style.transform='';
-  autoZoom();
-}
-
 // ── SHOCK PROPAGATION ──
 let shockState={dir:'pos',mag:2};
 function shockDir(d){
@@ -1308,7 +1307,8 @@ function runShock(){
   const fc=S.fc[iso3]?.[lbl];
   const srcStd=fc&&fc.values&&fc.values.length>3?_std(fc.values):1;
   const shockAmt=(shockState.dir==='pos'?1:-1)*mag*srcStd;
-  $('shock-desc').textContent=`Applying ${shockState.dir==='pos'?'+':'-'}${mag}σ = ${shockAmt>0?'+':''}${shockAmt.toFixed(2)} to "${lbl}". Downstream impact estimated via correlation chain (up to 4 hops).`;
+  const srcMean=fc&&fc.values?fc.values.reduce((a,b)=>a+b,0)/fc.values.length:0;
+  $('shock-desc').textContent=`Scenario: "${lbl}" ${shockState.dir==='pos'?'increases':'decreases'} by ${mag}σ (${shockAmt>0?'+':''}${shockAmt.toFixed(2)} from mean ${srcMean.toFixed(1)}). Downstream ripple via correlation chain, up to 4 hops.`;
   // BFS through correlation graph, attenuate by r at each hop
   const ae=getAE();
   const adj={};
@@ -1344,10 +1344,10 @@ function runShock(){
     const pct=Math.min(100,(Math.abs(r.sigmas)/maxAbs)*100);
     const pos=r.sigmas>0;const clr=pos?'var(--ph)':'var(--nh)';
     const cMeta=S.meta?.country_meta[r.country];
-    const cDot=`<span style="display:inline-block;width:4px;height:4px;border-radius:50%;background:${cMeta?.color||'#888'};margin-right:3px;vertical-align:middle"></span>`;
-    const pathStr=r.path.slice(1).map(p=>p.substring(0,14)).join(' → ');
+    const cLabel=`<span style="color:${cMeta?.color||'#888'};font-size:7px;font-weight:700;letter-spacing:.05em;margin-right:5px">${cMeta?.name||r.country}</span>`;
+    const pathStr=r.path.slice(1).map(p=>p.substring(0,14)).join(' > ');
     return `<div class="shock-node-row">
-      <div class="shock-node-name" title="${r.path.join(' → ')}">${cDot}${r.label.substring(0,28)}<div style="font-size:7px;color:var(--mu);margin-top:1px">${pathStr.substring(0,42)}</div></div>
+      <div class="shock-node-name" title="${r.path.join(' > ')}">${cLabel}${r.label.substring(0,28)}<div style="font-size:7px;color:var(--mu);margin-top:1px">${pathStr.substring(0,42)}</div></div>
       <div class="shock-bar-wrap"><div class="shock-bar" style="width:${pct}%;background:${clr};opacity:.7"></div></div>
       <div class="shock-sigma" style="color:${clr}">${r.sigmas>0?'+':''}${r.sigmas.toFixed(2)}σ</div>
       <div style="font-size:7px;color:var(--mu);min-width:22px;text-align:right">h${r.hop}</div>
