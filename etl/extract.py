@@ -760,24 +760,29 @@ CTRY_ISO3 = {
 # DDF concept name → (display name, category, unit)
 # Files are ddf--datapoints--{concept}--by--country--time.csv
 FASTTRACK_TARGETS = {
-    'demox_eiu':
-        ('Democracy Index (EIU)', 'Governance', 'score 0-100'),
-    'corruption_perception_index_cpi':
-        ('Corruption Perception Index', 'Governance', 'score 0-100'),
+    # IDEA indices — 1975-2021, full coverage, ideal for long correlations
+    'abscorrup_idea':
+        ('Absence of Corruption (IDEA)', 'Governance', 'score 0-100'),
+    'c_checkgvt_idea':
+        ('Checks on Government (IDEA)', 'Governance', 'score 0-100'),
+    'c_fundright_idea':
+        ('Fundamental Rights Index (IDEA)', 'Governance', 'score 0-100'),
+    'c_rgvt_idea':
+        ('Representative Government (IDEA)', 'Governance', 'score 0-100'),
     'fexpression_idea':
-        ('Freedom of Expression Index', 'Governance', 'score 0-100'),
+        ('Freedom of Expression Index (IDEA)', 'Governance', 'score 0-100'),
     'gendereq_idea':
         ('Gender Equality Index (IDEA)', 'Social', 'score 0-100'),
+    # Health & social
     'child_mortality_0_5_year_olds_dying_per_1000_born':
         ('Child Mortality (0-5 years)', 'Health', 'per 1000 births'),
+    # Climate (consumption-based — complements WB production CO2)
     'co2_pcap_terr':
         ('CO2 Emissions per Capita (territorial)', 'Climate', 'tonnes/person'),
     'co2_pcap_cons':
         ('CO2 Emissions per Capita (consumption)', 'Climate', 'tonnes/person'),
     'carbonfp_pcap':
         ('Carbon Footprint per Capita', 'Climate', 'tonnes CO2e/person'),
-    'journaprison':
-        ('Journalists Imprisoned', 'Governance', 'count'),
 }
 
 def fetch_fasttrack():

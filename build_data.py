@@ -530,7 +530,11 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
             ar = abs(r)
             if ar >= 1.0 - 1e-9: continue
             z = 0.5 * np.log((1 + ar) / (1 - ar))
-            z_thr = 1.44 / max(1, (n - 3)) ** 0.5
+            # Cross-domain pairs already filtered by whitelist + Granger;
+            # use p<0.15 (z=1.04) for cross-domain, p<0.075 (z=1.44) within-domain.
+            is_cross = (cat_map is not None and cat_a != cat_b)
+            z_crit = 1.04 if is_cross else 1.44
+            z_thr = z_crit / max(1, (n - 3)) ** 0.5
             if z < z_thr: continue
 
             # ── Stage 4: consistency — same sign in both halves ──
