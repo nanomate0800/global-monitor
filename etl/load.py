@@ -119,8 +119,9 @@ def get_or_create_indicator(conn, code, name, cat, unit):
     return cur.lastrowid
 
 def load_country_facts(conn):
-    """Load non-city indicator facts (WB, IMF, UNDP)."""
-    files = ['wb_indicators.csv', 'imf_indicators.csv', 'undp_hdi.csv']
+    """Load non-city indicator facts (WB, IMF, UNDP, Comtrade, IEA, FAOSTAT)."""
+    files = ['wb_indicators.csv', 'imf_indicators.csv', 'undp_hdi.csv',
+             'comtrade_trade.csv', 'iea_energy.csv', 'faostat_agriculture.csv']
     total = 0
     country_ids = {r[0]: r[1] for r in conn.execute('SELECT iso3, country_id FROM dim_country').fetchall()}
     for fname in files:

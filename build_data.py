@@ -165,6 +165,16 @@ _ALLOWED_CAT_PAIRS = {
     frozenset({'Governance','Governance'}),
     frozenset({'Demographics','Demographics'}),
     frozenset({'Demographic','Demographic'}),
+    frozenset({'Agriculture','Agriculture'}),
+    frozenset({'Agriculture','Economy'}),
+    frozenset({'Agriculture','Climate'}),
+    frozenset({'Agriculture','Environment'}),
+    frozenset({'Agriculture','Trade'}),
+    frozenset({'Agriculture','Health'}),
+    frozenset({'Agriculture','Social'}),
+    frozenset({'Agriculture','Demographics'}),
+    frozenset({'Agriculture','Demographic'}),
+    frozenset({'Agriculture','Energy'}),
 }
 
 def _domain_allowed(cat_a, cat_b):
@@ -486,12 +496,13 @@ THEME_INDICATORS = {
     'Financial':     ['GDP growth rate (annual %)','Inflation, consumer prices (annual %)','Official exchange rate (LCU per USD)'],
     'Environmental': ['CO2 emissions per capita (metric tons)','Energy use per capita (kg oil equiv)'],
     'Social':        ['GINI index','Human Development Index','Life expectancy at birth (years)','Unemployment rate (%)'],
-    'Energy':        ['Energy use per capita (kg oil equiv)'],
+    'Energy':        ['Energy use per capita (kg oil equiv)','Access to electricity (% of population)','Renewable energy share in total final energy consumption (%)'],
     'Minerals':      [],
     'SovereignDebt': ['General govt gross debt (% of GDP)'],
     'Geopolitical':  [],
     'Health':        ['Life expectancy at birth (years)'],
     'Demographic':   ['Total population'],
+    'Agriculture':   ['Crop production index (2014-2016=100)','Food production index (2014-2016=100)','Arable land (% of land area)','Prevalence of undernourishment (% of population)'],
 }
 
 risk_signals = {}

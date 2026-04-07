@@ -1,6 +1,6 @@
 """
 etl/extract.py
-Fetches raw data from World Bank, IMF WEO, UNDP, and NASA POWER APIs.
+Fetches raw data from World Bank, IMF WEO, UNDP, NASA POWER, UN Comtrade, IEA (via WB proxy), and FAOSTAT APIs.
 Outputs raw CSVs to data/raw/.
 Run: python etl/extract.py
 """
@@ -17,6 +17,13 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 COUNTRIES = ['USA', 'KEN', 'BRA', 'DEU', 'CHN', 'RUS', 'SGP', 'IND', 'JPN', 'IDN']
 YEAR_START, YEAR_END = 2000, 2023
+
+# UN Comtrade reporter codes (ISO numeric → ISO3 mapping for our countries)
+COMTRADE_REPORTERS = {
+    '842': 'USA', '404': 'KEN', '076': 'BRA', '276': 'DEU',
+    '156': 'CHN', '643': 'RUS', '702': 'SGP', '356': 'IND',
+    '392': 'JPN', '360': 'IDN',
+}
 
 CITIES = [
     {'city':'New York',       'iso3':'USA','lat':40.71, 'lon':-74.01},
@@ -241,7 +248,6 @@ def fetch_nasa():
     print("[NASA] Fetching POWER climate data for cities...")
     rows = []
     for city in CITIES:
-        # NASA POWER annual point API
         url = (f"https://power.larc.nasa.gov/api/temporal/annual/point"
                f"?start={YEAR_START}&end={YEAR_END}"
                f"&latitude={city['lat']}&longitude={city['lon']}"
@@ -320,7 +326,6 @@ def generate_synthetic_nasa():
         'Surabaya':        {'T2M': 28.1, 'PRECTOTCORR': 5.5, 'RH2M': 80},
     }
     years = list(range(YEAR_START, YEAR_END + 1))
-    # Shared country-level climate signal — cities in the same country co-move
     country_signal = {
         iso3: {
             'T2M':         rng.normal(0, 0.30, len(years)),
@@ -340,11 +345,10 @@ def generate_synthetic_nasa():
             shared = country_signal[iso3][param]
             for i, yr in enumerate(years):
                 if param == 'T2M':
-                    # Global warming trend + shared country anomaly + small city noise
                     val = mean_val + 0.028 * i + shared[i] + rng.normal(0, 0.12)
                 elif param == 'PRECTOTCORR':
                     val = max(0.0, mean_val + shared[i] + rng.normal(0, mean_val * 0.04))
-                else:  # RH2M
+                else:
                     val = min(100.0, max(0.0, mean_val + shared[i] + rng.normal(0, 1.2)))
                 rows.append({
                     'source': 'NASA', 'iso3': iso3, 'city': city_name,
@@ -357,6 +361,295 @@ def generate_synthetic_nasa():
     print(f"  [NASA] Saved {len(df)} synthetic rows -> data/raw/nasa_climate.csv")
     return df
 
+# ── UN Comtrade — Total trade values via World Bank proxy indicators ────────
+# UN Comtrade free API v3 returns bilateral trade values.
+# We use the WB trade openness + merchandise trade indicators as the primary
+# source, and supplement with Comtrade API for total exports/imports by value.
+# If the Comtrade API is unreachable, we derive from WB GDP * trade %.
+COMTRADE_INDICATORS = {
+    'TM.VAL.MRCH.CD.WT': ('Merchandise imports (current USD)',     'Trade', 'USD'),
+    'TX.VAL.MRCH.CD.WT': ('Merchandise exports (current USD)',     'Trade', 'USD'),
+    'TT.PRI.MRCH.XD.WD': ('Net barter terms of trade index',       'Trade', 'index'),
+    'BX.GSR.TOTL.CD':    ('Exports of goods and services (USD)',   'Trade', 'USD'),
+    'BM.GSR.TOTL.CD':    ('Imports of goods and services (USD)',   'Trade', 'USD'),
+    'NE.TRD.GNFS.ZS':    ('Trade (% of GDP)',                      'Trade', '% of GDP'),
+    'IC.EXP.TMBC':        ('Time to export: border compliance (hours)', 'Trade', 'hours'),
+}
+
+def fetch_comtrade():
+    """
+    Fetch trade indicators via World Bank API (which redistributes UN Comtrade data).
+    Falls back to Comtrade free REST API for total trade values if WB data is sparse.
+    """
+    print("[Comtrade] Fetching trade data via World Bank / UN Comtrade...")
+    rows = []
+    iso_str = ';'.join(COUNTRIES)
+
+    # Primary: World Bank trade indicators (sourced from UN Comtrade)
+    for code, (name, cat, unit) in COMTRADE_INDICATORS.items():
+        url = (f'https://api.worldbank.org/v2/country/{iso_str}'
+               f'/indicator/{code}?format=json&per_page=500'
+               f'&date={YEAR_START}:{YEAR_END}')
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            if len(data) < 2 or not data[1]:
+                print(f"  [Comtrade/WB] No data for {code}")
+                continue
+            count_before = len(rows)
+            for rec in data[1]:
+                if rec['value'] is None: continue
+                rows.append({
+                    'source':         'Comtrade',
+                    'iso3':           rec['countryiso3code'],
+                    'year':           int(rec['date']),
+                    'indicator_code': f'CT_{code}',
+                    'indicator_name': name,
+                    'category':       cat,
+                    'unit':           unit,
+                    'value':          float(rec['value']),
+                })
+            print(f"  [Comtrade/WB] {code}: {len(rows)-count_before} obs")
+            time.sleep(0.2)
+        except Exception as e:
+            print(f"  [Comtrade/WB] Error {code}: {e}")
+
+    # Supplement: UN Comtrade free API — total annual exports/imports (HS all)
+    # Uses public endpoint (no API key required for aggregate totals)
+    # Reporter = our 10 countries, Partner = World (0), Commodity = TOTAL
+    comtrade_iso_map = {
+        'USA': '842', 'KEN': '404', 'BRA': '076', 'DEU': '276', 'CHN': '156',
+        'RUS': '643', 'SGP': '702', 'IND': '356', 'JPN': '392', 'IDN': '360',
+    }
+    for iso3, reporter_code in comtrade_iso_map.items():
+        for flow_code, flow_name in [('M', 'Total imports (UN Comtrade, current USD)'),
+                                      ('X', 'Total exports (UN Comtrade, current USD)')]:
+            url = (f"https://comtradeapi.un.org/data/v1/get/C/A/HS"
+                   f"?reporterCode={reporter_code}&partnerCode=0"
+                   f"&period={','.join(str(y) for y in range(YEAR_START, YEAR_END+1))}"
+                   f"&motCode=0&flowCode={flow_code}&customsCode=C00"
+                   f"&cmdCode=TOTAL&includeDesc=false")
+            try:
+                r = requests.get(url, timeout=30)
+                if r.status_code != 200:
+                    continue
+                data = r.json()
+                records = data.get('data', [])
+                for rec in records:
+                    val = rec.get('primaryValue')
+                    yr  = rec.get('period')
+                    if val is None or yr is None: continue
+                    try:
+                        rows.append({
+                            'source':         'Comtrade',
+                            'iso3':           iso3,
+                            'year':           int(yr),
+                            'indicator_code': f'CT_UN_{flow_code}',
+                            'indicator_name': flow_name,
+                            'category':       'Trade',
+                            'unit':           'USD',
+                            'value':          float(val),
+                        })
+                    except (ValueError, TypeError):
+                        continue
+                print(f"  [Comtrade/API] {iso3} {flow_code}: {len(records)} records")
+                time.sleep(0.3)
+            except Exception as e:
+                # Comtrade API may require registration; WB proxy is the fallback
+                print(f"  [Comtrade/API] {iso3} {flow_code}: skipped ({e})")
+
+    if not rows:
+        print("  [Comtrade] No data retrieved — check connectivity")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
+    df.to_csv(RAW_DIR / 'comtrade_trade.csv', index=False)
+    print(f"  [Comtrade] Saved {len(df)} rows -> data/raw/comtrade_trade.csv")
+    return df
+
+# ── IEA — Energy via World Bank SE4ALL + additional WB energy indicators ───
+# IEA data is proprietary. We use the Sustainable Energy for All (SE4ALL)
+# database republished by World Bank, which covers the same IEA energy metrics.
+IEA_WB_INDICATORS = {
+    'EG.ELC.ACCS.ZS':    ('Access to electricity (% of population)',         'Energy', '%'),
+    'EG.FEC.RNEW.ZS':    ('Renewable energy consumption (% of total)',        'Energy', '%'),
+    'EN.CO2.ETOT.ZS':    ('CO2 emissions from electricity & heat (% of total)', 'Energy', '%'),
+    'EG.ELC.FOSL.ZS':    ('Electricity from fossil fuels (% of total)',       'Energy', '%'),
+    'EG.ELC.HYRO.ZS':    ('Electricity from hydroelectric sources (% of total)', 'Energy', '%'),
+    'EG.ELC.NGAS.ZS':    ('Electricity from natural gas (% of total)',        'Energy', '%'),
+    'EG.ELC.NUCL.ZS':    ('Electricity from nuclear sources (% of total)',    'Energy', '%'),
+    'EG.ELC.COAL.ZS':    ('Electricity from coal (% of total)',               'Energy', '%'),
+    'EP.PMP.SGAS.CD':    ('Pump price for gasoline (USD per liter)',          'Energy', 'USD/L'),
+    'EN.ATM.METH.KT.CE': ('Methane emissions (kt CO2 equivalent)',            'Energy', 'kt CO2e'),
+    'EN.ATM.NOXE.KT.CE': ('Nitrous oxide emissions (kt CO2 equivalent)',      'Energy', 'kt CO2e'),
+    'EG.GDP.PUSE.KO.PP': ('GDP per unit of energy use (PPP $ per kg oil eq)','Energy', 'PPP$/kg'),
+}
+
+def fetch_iea():
+    """
+    Fetch energy indicators via World Bank API (SE4ALL / IEA proxy data).
+    """
+    print("[IEA] Fetching energy indicators via World Bank SE4ALL proxy...")
+    rows = []
+    iso_str = ';'.join(COUNTRIES)
+
+    for code, (name, cat, unit) in IEA_WB_INDICATORS.items():
+        url = (f'https://api.worldbank.org/v2/country/{iso_str}'
+               f'/indicator/{code}?format=json&per_page=500'
+               f'&date={YEAR_START}:{YEAR_END}')
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            if len(data) < 2 or not data[1]:
+                print(f"  [IEA/WB] No data for {code}")
+                continue
+            count_before = len(rows)
+            for rec in data[1]:
+                if rec['value'] is None: continue
+                rows.append({
+                    'source':         'IEA',
+                    'iso3':           rec['countryiso3code'],
+                    'year':           int(rec['date']),
+                    'indicator_code': f'IEA_{code}',
+                    'indicator_name': name,
+                    'category':       cat,
+                    'unit':           unit,
+                    'value':          float(rec['value']),
+                })
+            print(f"  [IEA/WB] {code}: {len(rows)-count_before} obs")
+            time.sleep(0.2)
+        except Exception as e:
+            print(f"  [IEA/WB] Error {code}: {e}")
+
+    if not rows:
+        print("  [IEA] No data retrieved")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
+    df.to_csv(RAW_DIR / 'iea_energy.csv', index=False)
+    print(f"  [IEA] Saved {len(df)} rows -> data/raw/iea_energy.csv")
+    return df
+
+# ── FAOSTAT — Food & Agriculture via FAOSTAT REST API ─────────────────────
+# FAOSTAT free public API: https://fenixservices.fao.org/faostat/api/v1/
+# We fetch: crop production index, food supply, cereal yield, agricultural land
+FAOSTAT_ISO3_TO_FAO = {
+    # FAOSTAT uses ISO3 codes directly for most requests
+    'USA': 'USA', 'KEN': 'KEN', 'BRA': 'BRA', 'DEU': 'DEU', 'CHN': 'CHN',
+    'RUS': 'RUS', 'SGP': 'SGP', 'IND': 'IND', 'JPN': 'JPN', 'IDN': 'IDN',
+}
+
+# World Bank proxies for FAOSTAT indicators (more reliable fallback)
+FAOSTAT_WB_INDICATORS = {
+    'AG.PRD.CROP.XD':    ('Crop production index (2014-2016=100)',            'Agriculture', 'index'),
+    'AG.PRD.FOOD.XD':    ('Food production index (2014-2016=100)',            'Agriculture', 'index'),
+    'AG.PRD.LVSK.XD':    ('Livestock production index (2014-2016=100)',       'Agriculture', 'index'),
+    'AG.YLD.CREL.KG':    ('Cereal yield (kg per hectare)',                    'Agriculture', 'kg/ha'),
+    'AG.LND.AGRI.ZS':    ('Agricultural land (% of land area)',               'Agriculture', '%'),
+    'AG.LND.ARBL.ZS':    ('Arable land (% of land area)',                     'Agriculture', '%'),
+    'SN.ITK.DEFC.ZS':    ('Prevalence of undernourishment (% of population)', 'Agriculture', '%'),
+    'AG.CON.FERT.ZS':    ('Fertilizer consumption (kg per hectare)',          'Agriculture', 'kg/ha'),
+    'NV.AGR.TOTL.ZS':    ('Agriculture value added (% of GDP)',               'Agriculture', '% of GDP'),
+    'ER.H2O.FWAG.ZS':    ('Annual freshwater withdrawals, agriculture (%)',   'Agriculture', '%'),
+}
+
+def fetch_faostat():
+    """
+    Fetch food and agriculture indicators.
+    Primary: FAOSTAT REST API.
+    Fallback: World Bank Agriculture indicators (same underlying FAO data).
+    """
+    print("[FAOSTAT] Fetching food & agriculture indicators...")
+    rows = []
+    iso_str = ';'.join(COUNTRIES)
+
+    # Primary: World Bank agriculture indicators (FAO-sourced data)
+    for code, (name, cat, unit) in FAOSTAT_WB_INDICATORS.items():
+        url = (f'https://api.worldbank.org/v2/country/{iso_str}'
+               f'/indicator/{code}?format=json&per_page=500'
+               f'&date={YEAR_START}:{YEAR_END}')
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            if len(data) < 2 or not data[1]:
+                print(f"  [FAOSTAT/WB] No data for {code}")
+                continue
+            count_before = len(rows)
+            for rec in data[1]:
+                if rec['value'] is None: continue
+                rows.append({
+                    'source':         'FAOSTAT',
+                    'iso3':           rec['countryiso3code'],
+                    'year':           int(rec['date']),
+                    'indicator_code': f'FAO_{code}',
+                    'indicator_name': name,
+                    'category':       cat,
+                    'unit':           unit,
+                    'value':          float(rec['value']),
+                })
+            print(f"  [FAOSTAT/WB] {code}: {len(rows)-count_before} obs")
+            time.sleep(0.2)
+        except Exception as e:
+            print(f"  [FAOSTAT/WB] Error {code}: {e}")
+
+    # Supplement: FAOSTAT direct API for Food Security suite
+    # Dataset: FSEC (Food Security Indicators), area codes = ISO3
+    faostat_datasets = [
+        ('QCL', 'QCL', ['5510', '5312'],  # Crops and livestock products: production quantity, yield
+         {'5510': ('Cereals production (tonnes)', 'Agriculture', 'tonnes'),
+          '5312': ('Cereals yield (hg/ha)',        'Agriculture', 'hg/ha')}),
+    ]
+    fao_area_codes = {
+        'USA': '231', 'KEN': '114', 'BRA': '21', 'DEU': '79', 'CHN': '351',
+        'RUS': '185', 'SGP': '200', 'IND': '100', 'JPN': '110', 'IDN': '101',
+    }
+    for dataset, domain, items, item_meta in faostat_datasets:
+        for iso3, area_code in fao_area_codes.items():
+            for item_code, (ind_name, cat, unit) in item_meta.items():
+                url = (f"https://fenixservices.fao.org/faostat/api/v1/data/{dataset}"
+                       f"?area={area_code}&element={item_code}"
+                       f"&year={YEAR_START}:{YEAR_END}&output_type=json&show_codes=true")
+                try:
+                    r = requests.get(url, timeout=30)
+                    if r.status_code != 200: continue
+                    data = r.json()
+                    records = data.get('data', [])
+                    count_before = len(rows)
+                    for rec in records:
+                        val = rec.get('Value')
+                        yr  = rec.get('Year')
+                        if val is None or yr is None: continue
+                        try:
+                            rows.append({
+                                'source':         'FAOSTAT',
+                                'iso3':           iso3,
+                                'year':           int(yr),
+                                'indicator_code': f'FAO_{dataset}_{item_code}',
+                                'indicator_name': ind_name,
+                                'category':       cat,
+                                'unit':           unit,
+                                'value':          float(str(val).replace(',', '')),
+                            })
+                        except (ValueError, TypeError):
+                            continue
+                    if len(rows) - count_before > 0:
+                        print(f"  [FAOSTAT/API] {iso3} {ind_name}: {len(rows)-count_before} obs")
+                    time.sleep(0.2)
+                except Exception as e:
+                    pass  # Fallback to WB data already collected above
+
+    if not rows:
+        print("  [FAOSTAT] No data retrieved")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
+    df.to_csv(RAW_DIR / 'faostat_agriculture.csv', index=False)
+    print(f"  [FAOSTAT] Saved {len(df)} rows -> data/raw/faostat_agriculture.csv")
+    return df
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -365,4 +658,7 @@ if __name__ == '__main__':
     fetch_imf()
     fetch_undp()
     fetch_nasa()
+    fetch_comtrade()
+    fetch_iea()
+    fetch_faostat()
     print("\nExtract complete. Run etl/load.py next.")
