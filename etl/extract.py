@@ -26,29 +26,73 @@ COMTRADE_REPORTERS = {
 }
 
 CITIES = [
-    {'city':'New York',       'iso3':'USA','lat':40.71, 'lon':-74.01},
-    {'city':'Los Angeles',    'iso3':'USA','lat':34.05, 'lon':-118.25},
-    {'city':'Chicago',        'iso3':'USA','lat':41.88, 'lon':-87.63},
-    {'city':'Nairobi',        'iso3':'KEN','lat':-1.29, 'lon':36.82},
-    {'city':'Mombasa',        'iso3':'KEN','lat':-4.05, 'lon':39.67},
-    {'city':'Sao Paulo',      'iso3':'BRA','lat':-23.55,'lon':-46.63},
-    {'city':'Rio de Janeiro', 'iso3':'BRA','lat':-22.91,'lon':-43.17},
-    {'city':'Berlin',         'iso3':'DEU','lat':52.52, 'lon':13.41},
-    {'city':'Munich',         'iso3':'DEU','lat':48.14, 'lon':11.58},
-    {'city':'Hamburg',        'iso3':'DEU','lat':53.55, 'lon':10.00},
-    {'city':'Beijing',        'iso3':'CHN','lat':39.91, 'lon':116.39},
-    {'city':'Shanghai',       'iso3':'CHN','lat':31.23, 'lon':121.47},
-    {'city':'Guangzhou',      'iso3':'CHN','lat':23.12, 'lon':113.25},
-    {'city':'Moscow',         'iso3':'RUS','lat':55.75, 'lon':37.62},
-    {'city':'Saint Petersburg','iso3':'RUS','lat':59.95, 'lon':30.32},
-    {'city':'Singapore',      'iso3':'SGP','lat': 1.35, 'lon':103.82},
-    {'city':'Mumbai',         'iso3':'IND','lat':19.08, 'lon':72.88},
-    {'city':'Delhi',          'iso3':'IND','lat':28.70, 'lon':77.10},
-    {'city':'Bangalore',      'iso3':'IND','lat':12.97, 'lon':77.59},
-    {'city':'Tokyo',          'iso3':'JPN','lat':35.69, 'lon':139.69},
-    {'city':'Osaka',          'iso3':'JPN','lat':34.69, 'lon':135.50},
-    {'city':'Jakarta',        'iso3':'IDN','lat':-6.21, 'lon':106.85},
-    {'city':'Surabaya',       'iso3':'IDN','lat':-7.25, 'lon':112.75},
+    # USA — coast-to-coast + interior coverage
+    {'city':'New York',        'iso3':'USA','lat': 40.71, 'lon': -74.01},
+    {'city':'Los Angeles',     'iso3':'USA','lat': 34.05, 'lon':-118.25},
+    {'city':'Chicago',         'iso3':'USA','lat': 41.88, 'lon': -87.63},
+    {'city':'Houston',         'iso3':'USA','lat': 29.76, 'lon': -95.37},
+    {'city':'Miami',           'iso3':'USA','lat': 25.76, 'lon': -80.19},
+    {'city':'Seattle',         'iso3':'USA','lat': 47.61, 'lon':-122.33},
+    {'city':'Phoenix',         'iso3':'USA','lat': 33.45, 'lon':-112.07},
+    {'city':'Denver',          'iso3':'USA','lat': 39.74, 'lon':-104.99},
+    # KEN — highland, coastal, western lake basin
+    {'city':'Nairobi',         'iso3':'KEN','lat': -1.29, 'lon':  36.82},
+    {'city':'Mombasa',         'iso3':'KEN','lat': -4.05, 'lon':  39.67},
+    {'city':'Kisumu',          'iso3':'KEN','lat': -0.10, 'lon':  34.76},
+    {'city':'Eldoret',         'iso3':'KEN','lat':  0.52, 'lon':  35.27},
+    # BRA — southeast, central plateau, Amazon, northeast, south
+    {'city':'Sao Paulo',       'iso3':'BRA','lat':-23.55, 'lon': -46.63},
+    {'city':'Rio de Janeiro',  'iso3':'BRA','lat':-22.91, 'lon': -43.17},
+    {'city':'Brasilia',        'iso3':'BRA','lat':-15.78, 'lon': -47.93},
+    {'city':'Manaus',          'iso3':'BRA','lat': -3.10, 'lon': -60.03},
+    {'city':'Recife',          'iso3':'BRA','lat': -8.05, 'lon': -34.88},
+    {'city':'Porto Alegre',    'iso3':'BRA','lat':-30.03, 'lon': -51.22},
+    # DEU — north, south, central-west
+    {'city':'Berlin',          'iso3':'DEU','lat': 52.52, 'lon':  13.41},
+    {'city':'Munich',          'iso3':'DEU','lat': 48.14, 'lon':  11.58},
+    {'city':'Hamburg',         'iso3':'DEU','lat': 53.55, 'lon':  10.00},
+    {'city':'Frankfurt',       'iso3':'DEU','lat': 50.11, 'lon':   8.68},
+    {'city':'Stuttgart',       'iso3':'DEU','lat': 48.78, 'lon':   9.18},
+    # CHN — north, east, south, inland, northeast cold, central
+    {'city':'Beijing',         'iso3':'CHN','lat': 39.91, 'lon': 116.39},
+    {'city':'Shanghai',        'iso3':'CHN','lat': 31.23, 'lon': 121.47},
+    {'city':'Guangzhou',       'iso3':'CHN','lat': 23.12, 'lon': 113.25},
+    {'city':'Chengdu',         'iso3':'CHN','lat': 30.57, 'lon': 104.07},
+    {'city':'Wuhan',           'iso3':'CHN','lat': 30.59, 'lon': 114.31},
+    {'city':'Harbin',          'iso3':'CHN','lat': 45.75, 'lon': 126.64},
+    {'city':'Xian',            'iso3':'CHN','lat': 34.27, 'lon': 108.95},
+    # RUS — west, Urals, west Siberia, central Siberia, far east
+    {'city':'Moscow',          'iso3':'RUS','lat': 55.75, 'lon':  37.62},
+    {'city':'Saint Petersburg','iso3':'RUS','lat': 59.95, 'lon':  30.32},
+    {'city':'Novosibirsk',     'iso3':'RUS','lat': 54.99, 'lon':  82.91},
+    {'city':'Yekaterinburg',   'iso3':'RUS','lat': 56.84, 'lon':  60.61},
+    {'city':'Vladivostok',     'iso3':'RUS','lat': 43.13, 'lon': 131.91},
+    {'city':'Krasnoyarsk',     'iso3':'RUS','lat': 56.01, 'lon':  92.87},
+    # SGP — city-state
+    {'city':'Singapore',       'iso3':'SGP','lat':  1.35, 'lon': 103.82},
+    # IND — west coast, north, south, east, central-south, northwest, inland
+    {'city':'Mumbai',          'iso3':'IND','lat': 19.08, 'lon':  72.88},
+    {'city':'Delhi',           'iso3':'IND','lat': 28.70, 'lon':  77.10},
+    {'city':'Bangalore',       'iso3':'IND','lat': 12.97, 'lon':  77.59},
+    {'city':'Chennai',         'iso3':'IND','lat': 13.08, 'lon':  80.27},
+    {'city':'Kolkata',         'iso3':'IND','lat': 22.57, 'lon':  88.36},
+    {'city':'Hyderabad',       'iso3':'IND','lat': 17.38, 'lon':  78.49},
+    {'city':'Ahmedabad',       'iso3':'IND','lat': 23.02, 'lon':  72.57},
+    {'city':'Pune',            'iso3':'IND','lat': 18.52, 'lon':  73.86},
+    # JPN — main island, north, west, south
+    {'city':'Tokyo',           'iso3':'JPN','lat': 35.69, 'lon': 139.69},
+    {'city':'Osaka',           'iso3':'JPN','lat': 34.69, 'lon': 135.50},
+    {'city':'Sapporo',         'iso3':'JPN','lat': 43.06, 'lon': 141.35},
+    {'city':'Fukuoka',         'iso3':'JPN','lat': 33.59, 'lon': 130.40},
+    {'city':'Nagoya',          'iso3':'JPN','lat': 35.18, 'lon': 136.91},
+    {'city':'Sendai',          'iso3':'JPN','lat': 38.27, 'lon': 140.87},
+    # IDN — Java, Sumatra (north+south), Sulawesi
+    {'city':'Jakarta',         'iso3':'IDN','lat': -6.21, 'lon': 106.85},
+    {'city':'Surabaya',        'iso3':'IDN','lat': -7.25, 'lon': 112.75},
+    {'city':'Medan',           'iso3':'IDN','lat':  3.60, 'lon':  98.67},
+    {'city':'Makassar',        'iso3':'IDN','lat': -5.15, 'lon': 119.43},
+    {'city':'Bandung',         'iso3':'IDN','lat': -6.92, 'lon': 107.62},
+    {'city':'Palembang',       'iso3':'IDN','lat': -2.98, 'lon': 104.75},
 ]
 
 # ── World Bank indicators ──────────────────────────────────────────────────
@@ -301,29 +345,73 @@ def generate_synthetic_nasa():
     import numpy as np
     rng = np.random.default_rng(42)
     CITY_CLIMATE = {
+        # USA
         'New York':        {'T2M': 12.5, 'PRECTOTCORR': 3.2, 'RH2M': 65},
         'Los Angeles':     {'T2M': 18.0, 'PRECTOTCORR': 0.8, 'RH2M': 70},
         'Chicago':         {'T2M':  9.8, 'PRECTOTCORR': 2.4, 'RH2M': 72},
+        'Houston':         {'T2M': 20.5, 'PRECTOTCORR': 4.2, 'RH2M': 75},
+        'Miami':           {'T2M': 24.5, 'PRECTOTCORR': 4.8, 'RH2M': 78},
+        'Seattle':         {'T2M': 11.0, 'PRECTOTCORR': 3.0, 'RH2M': 76},
+        'Phoenix':         {'T2M': 23.5, 'PRECTOTCORR': 0.7, 'RH2M': 38},
+        'Denver':          {'T2M': 10.5, 'PRECTOTCORR': 1.2, 'RH2M': 50},
+        # KEN
         'Nairobi':         {'T2M': 17.5, 'PRECTOTCORR': 2.1, 'RH2M': 68},
         'Mombasa':         {'T2M': 26.5, 'PRECTOTCORR': 3.5, 'RH2M': 78},
+        'Kisumu':          {'T2M': 22.0, 'PRECTOTCORR': 3.2, 'RH2M': 72},
+        'Eldoret':         {'T2M': 16.5, 'PRECTOTCORR': 2.8, 'RH2M': 65},
+        # BRA
         'Sao Paulo':       {'T2M': 19.5, 'PRECTOTCORR': 4.2, 'RH2M': 74},
         'Rio de Janeiro':  {'T2M': 23.5, 'PRECTOTCORR': 4.8, 'RH2M': 76},
+        'Brasilia':        {'T2M': 21.0, 'PRECTOTCORR': 3.8, 'RH2M': 68},
+        'Manaus':          {'T2M': 27.0, 'PRECTOTCORR': 7.5, 'RH2M': 85},
+        'Recife':          {'T2M': 26.5, 'PRECTOTCORR': 5.5, 'RH2M': 80},
+        'Porto Alegre':    {'T2M': 19.5, 'PRECTOTCORR': 3.8, 'RH2M': 77},
+        # DEU
         'Berlin':          {'T2M':  9.5, 'PRECTOTCORR': 1.6, 'RH2M': 76},
         'Munich':          {'T2M':  8.5, 'PRECTOTCORR': 2.2, 'RH2M': 74},
         'Hamburg':         {'T2M':  9.0, 'PRECTOTCORR': 2.0, 'RH2M': 79},
+        'Frankfurt':       {'T2M': 10.0, 'PRECTOTCORR': 1.7, 'RH2M': 75},
+        'Stuttgart':       {'T2M':  9.5, 'PRECTOTCORR': 1.9, 'RH2M': 73},
+        # CHN
         'Beijing':         {'T2M': 11.5, 'PRECTOTCORR': 1.5, 'RH2M': 55},
         'Shanghai':        {'T2M': 16.0, 'PRECTOTCORR': 3.8, 'RH2M': 75},
         'Guangzhou':       {'T2M': 22.5, 'PRECTOTCORR': 5.2, 'RH2M': 78},
+        'Chengdu':         {'T2M': 16.5, 'PRECTOTCORR': 3.2, 'RH2M': 82},
+        'Wuhan':           {'T2M': 17.0, 'PRECTOTCORR': 3.5, 'RH2M': 78},
+        'Harbin':          {'T2M':  3.5, 'PRECTOTCORR': 1.3, 'RH2M': 65},
+        'Xian':            {'T2M': 13.5, 'PRECTOTCORR': 1.5, 'RH2M': 68},
+        # RUS
         'Moscow':          {'T2M':  5.8, 'PRECTOTCORR': 1.6, 'RH2M': 79},
         'Saint Petersburg':{'T2M':  5.0, 'PRECTOTCORR': 1.8, 'RH2M': 81},
+        'Novosibirsk':     {'T2M':  2.0, 'PRECTOTCORR': 1.2, 'RH2M': 72},
+        'Yekaterinburg':   {'T2M':  2.5, 'PRECTOTCORR': 1.4, 'RH2M': 74},
+        'Vladivostok':     {'T2M':  5.5, 'PRECTOTCORR': 1.9, 'RH2M': 78},
+        'Krasnoyarsk':     {'T2M':  1.5, 'PRECTOTCORR': 1.1, 'RH2M': 70},
+        # SGP
         'Singapore':       {'T2M': 27.0, 'PRECTOTCORR': 6.8, 'RH2M': 84},
+        # IND
         'Mumbai':          {'T2M': 27.2, 'PRECTOTCORR': 5.4, 'RH2M': 77},
         'Delhi':           {'T2M': 25.0, 'PRECTOTCORR': 2.1, 'RH2M': 62},
         'Bangalore':       {'T2M': 23.5, 'PRECTOTCORR': 2.8, 'RH2M': 70},
+        'Chennai':         {'T2M': 28.5, 'PRECTOTCORR': 3.5, 'RH2M': 74},
+        'Kolkata':         {'T2M': 26.5, 'PRECTOTCORR': 5.2, 'RH2M': 80},
+        'Hyderabad':       {'T2M': 26.0, 'PRECTOTCORR': 2.3, 'RH2M': 60},
+        'Ahmedabad':       {'T2M': 27.5, 'PRECTOTCORR': 1.8, 'RH2M': 55},
+        'Pune':            {'T2M': 24.5, 'PRECTOTCORR': 2.5, 'RH2M': 65},
+        # JPN
         'Tokyo':           {'T2M': 15.4, 'PRECTOTCORR': 3.7, 'RH2M': 72},
         'Osaka':           {'T2M': 16.2, 'PRECTOTCORR': 3.5, 'RH2M': 71},
+        'Sapporo':         {'T2M':  8.9, 'PRECTOTCORR': 2.2, 'RH2M': 68},
+        'Fukuoka':         {'T2M': 16.5, 'PRECTOTCORR': 4.5, 'RH2M': 73},
+        'Nagoya':          {'T2M': 15.5, 'PRECTOTCORR': 3.8, 'RH2M': 72},
+        'Sendai':          {'T2M': 12.5, 'PRECTOTCORR': 2.8, 'RH2M': 72},
+        # IDN
         'Jakarta':         {'T2M': 27.3, 'PRECTOTCORR': 7.1, 'RH2M': 83},
         'Surabaya':        {'T2M': 28.1, 'PRECTOTCORR': 5.5, 'RH2M': 80},
+        'Medan':           {'T2M': 26.5, 'PRECTOTCORR': 6.2, 'RH2M': 82},
+        'Makassar':        {'T2M': 27.8, 'PRECTOTCORR': 4.8, 'RH2M': 78},
+        'Bandung':         {'T2M': 22.5, 'PRECTOTCORR': 5.8, 'RH2M': 80},
+        'Palembang':       {'T2M': 27.5, 'PRECTOTCORR': 7.2, 'RH2M': 84},
     }
     years = list(range(YEAR_START, YEAR_END + 1))
     country_signal = {

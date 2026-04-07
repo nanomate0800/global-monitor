@@ -5,13 +5,14 @@ Run this after any database update: python3 build_data.py
 Outputs land in app/static/data/
 """
 import sys, json, sqlite3, numpy as np, pandas as pd, warnings, os
-from itertools import combinations
+from itertools import combinations, product as iproduct
 from collections import defaultdict
 from pathlib import Path
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 warnings.filterwarnings('ignore')
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import adfuller
 
 BASE     = Path(__file__).parent
 DB_PATH  = BASE / 'db' / 'database.db'
@@ -65,44 +66,166 @@ city_df = pd.read_sql('''
 conn.close()
 print(f"Loaded {len(df)} country rows, {len(city_df)} city rows")
 
-# ── STEP 1: ARIMA FORECASTS ──
-print("\n[1/5] ARIMA forecasts...")
+# ── STEP 1: ARIMA/ARIMAX FORECASTS (ADF stationarity + AIC model selection) ──
+print("\n[1/5] ARIMA/ARIMAX forecasts...")
+
+def _adf_d(vals):
+    """ADF test to select integration order d (0 or 1).
+    Uses constant-only regression; p < 0.10 → series is stationary → d=0.
+    Falls back to d=1 if the test fails (safe default for economic series).
+    """
+    if len(vals) < 8:
+        return 1
+    try:
+        maxlag = min(3, (len(vals) - 1) // 3)
+        pval = adfuller(vals, maxlag=maxlag, regression='c', autolag=None)[1]
+        return 0 if pval < 0.10 else 1
+    except Exception:
+        return 1
+
+def _fit_arima_aic(vals, d, exog=None):
+    """AIC grid search over p∈{0,1,2} × q∈{0,1,2} for a given d.
+    Skips (0,d,0) as it is equivalent to a random walk with no structure.
+    Returns (best_model, best_order) or (None, (1,d,1)) on total failure.
+    """
+    best_aic, best_m, best_order = np.inf, None, (1, d, 1)
+    for p, q in iproduct(range(3), range(3)):
+        if p == 0 and q == 0:
+            continue
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                m = (ARIMA(vals, order=(p, d, q), exog=exog).fit()
+                     if exog is not None
+                     else ARIMA(vals, order=(p, d, q)).fit())
+                if m.aic < best_aic:
+                    best_aic, best_m, best_order = m.aic, m, (p, d, q)
+        except Exception:
+            continue
+    return best_m, best_order
+
+def _fd_corr(xs, ys):
+    """Pearson r on first-differences — measures co-movement after detrending."""
+    if len(xs) < 4:
+        return 0.0
+    dx = [xs[i] - xs[i-1] for i in range(1, len(xs))]
+    dy = [ys[i] - ys[i-1] for i in range(1, len(ys))]
+    n = len(dx)
+    mx, my = sum(dx) / n, sum(dy) / n
+    num = sum((a - mx) * (b - my) for a, b in zip(dx, dy))
+    den = (sum((a - mx)**2 for a in dx) * sum((b - my)**2 for b in dy)) ** 0.5
+    return num / den if den > 0 else 0.0
+
 all_forecasts = {}
 for iso3 in COUNTRIES:
     all_forecasts[iso3] = {}
-    sub = df[df['iso3']==iso3]
+    sub = df[df['iso3'] == iso3]
+
+    # Pre-collect all series keyed by indicator name
+    country_series = {}
     for ind_name in sub['indicator_name'].unique():
-        rows = sub[sub['indicator_name']==ind_name].sort_values('year')
-        if len(rows) < 8: continue
-        vals = rows['value'].values.astype(float)
-        years = rows['year'].tolist()
-        for order in [(1,1,1),(0,1,1),(0,1,0)]:
+        rows_s = sub[sub['indicator_name'] == ind_name].sort_values('year')
+        if len(rows_s) < 8:
+            continue
+        country_series[ind_name] = dict(zip(rows_s['year'].tolist(),
+                                            rows_s['value'].tolist()))
+
+    n_arimax = 0
+    for ind_name, year_val in country_series.items():
+        years = sorted(year_val.keys())
+        vals  = np.array([year_val[y] for y in years], dtype=float)
+
+        # Stage 1 — ADF test determines d
+        d = _adf_d(vals)
+
+        # Stage 2 — search for an ARIMAX exogenous candidate:
+        #   · first-difference correlation |r| > 0.65 (genuine co-movement, not spurious)
+        #   · ≥ 15 overlapping years (enough data for a stable β estimate)
+        #   · fully covers target series years (required for aligned training exog)
+        exog_train  = None
+        exog_future = None
+        arimax_name = None
+        best_r      = 0.65  # minimum threshold
+
+        for other_name, other_yv in country_series.items():
+            if other_name == ind_name:
+                continue
+            common = sorted(set(years) & set(other_yv.keys()))
+            if len(common) < 15:
+                continue
+            if not all(y in other_yv for y in years):
+                continue  # exog must align exactly with training window
+            xs_c = [year_val[y]  for y in common]
+            ys_c = [other_yv[y]  for y in common]
+            r = abs(_fd_corr(xs_c, ys_c))
+            if r <= best_r:
+                continue
+            # Forecast the exog series with its own plain ARIMA so we have
+            # future values to pass to the main ARIMAX forecast.
+            exog_vals = np.array([other_yv[y] for y in years], dtype=float)
+            d_x = _adf_d(exog_vals)
+            exog_m, _ = _fit_arima_aic(exog_vals, d_x)
+            if exog_m is None:
+                continue
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
-                    m   = ARIMA(vals, order=order).fit()
-                    fco = m.get_forecast(FC_HORIZON)
-                    fc  = fco.predicted_mean.tolist()
-                    ci  = fco.conf_int(alpha=0.2)
-                    lo  = ci[:,0].tolist() if hasattr(ci,'shape') else ci.iloc[:,0].tolist()
-                    hi  = ci[:,1].tolist() if hasattr(ci,'shape') else ci.iloc[:,1].tolist()
-                    all_forecasts[iso3][ind_name] = {
-                        'years':  years,
-                        'values': [round(v,4) for v in vals.tolist()],
-                        'fc_years':  FC_YEARS,
-                        'fc_values': [round(v,4) for v in fc],
-                        'fc_lo':     [round(v,4) for v in lo],
-                        'fc_hi':     [round(v,4) for v in hi],
-                    }
-                    break
-            except: continue
+                    exog_fc_vals = exog_m.get_forecast(FC_HORIZON).predicted_mean.values
+                best_r      = r
+                exog_train  = exog_vals
+                exog_future = exog_fc_vals
+                arimax_name = other_name
+            except Exception:
+                continue
+
+        # Stage 3 — AIC-selected ARIMA (or ARIMAX if a candidate was found)
+        m, order = _fit_arima_aic(vals, d, exog=exog_train)
+        if m is None:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore')
+                    m = ARIMA(vals, order=(1, 1, 1)).fit()
+                    order = (1, 1, 1)
+            except Exception:
+                continue
+
+        # Stage 4 — generate 15-year forecast with 80% CI
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                fc_kw  = {'exog': exog_future} if exog_future is not None else {}
+                fco    = m.get_forecast(FC_HORIZON, **fc_kw)
+                fc     = fco.predicted_mean.tolist()
+                ci     = fco.conf_int(alpha=0.2)
+                lo     = ci.iloc[:, 0].tolist()
+                hi     = ci.iloc[:, 1].tolist()
+        except Exception:
+            continue
+
+        if arimax_name:
+            n_arimax += 1
+        all_forecasts[iso3][ind_name] = {
+            'years':       years,
+            'values':      [round(v, 4) for v in vals.tolist()],
+            'fc_years':    FC_YEARS,
+            'fc_values':   [round(v, 4) for v in fc],
+            'fc_lo':       [round(v, 4) for v in lo],
+            'fc_hi':       [round(v, 4) for v in hi],
+            'arima_order': list(order),
+            'arimax':      arimax_name,   # None → plain ARIMA
+        }
+
+    n_total = len(all_forecasts[iso3])
+    print(f"  {iso3}: {n_total} series "
+          f"({n_arimax} ARIMAX, {n_total - n_arimax} ARIMA)")
 
 # Save per-country forecast files
 for iso3, fc_data in all_forecasts.items():
     path = FC_DIR / f'{iso3}.json'
-    with open(path,'w') as f: json.dump(fc_data, f, separators=(',',':'))
+    with open(path, 'w') as f:
+        json.dump(fc_data, f, separators=(',', ':'))
 total = sum(len(v) for v in all_forecasts.values())
-print(f"  {total} series → app/static/data/forecasts/")
+print(f"  {total} total series → app/static/data/forecasts/")
 
 # ── STEP 2: WINDOWED CORRELATIONS ──
 print("\n[2/5] Windowed correlations...")
