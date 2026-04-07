@@ -197,8 +197,8 @@ for iso3 in COUNTRIES:
                 fco    = m.get_forecast(FC_HORIZON, **fc_kw)
                 fc     = fco.predicted_mean.tolist()
                 ci     = fco.conf_int(alpha=0.2)
-                lo     = ci.iloc[:, 0].tolist()
-                hi     = ci.iloc[:, 1].tolist()
+                lo     = (ci[:, 0] if hasattr(ci, 'shape') else ci.iloc[:, 0]).tolist()
+                hi     = (ci[:, 1] if hasattr(ci, 'shape') else ci.iloc[:, 1]).tolist()
         except Exception:
             continue
 

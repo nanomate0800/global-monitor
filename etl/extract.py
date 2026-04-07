@@ -100,7 +100,7 @@ WB_INDICATORS = {
     'NY.GDP.MKTP.KD.ZG':     ('GDP growth rate (annual %)',                  'Economy',     '%'),
     'FP.CPI.TOTL.ZG':        ('Inflation, consumer prices (annual %)',       'Economy',     '%'),
     'PA.NUS.FCRF':            ('Official exchange rate (LCU per USD)',        'Economy',     'LCU/USD'),
-    'EN.ATM.CO2E.PC':        ('CO2 emissions per capita (metric tons)',      'Climate',     'metric tons'),
+    'EN.GHG.CO2.IP.MT.CE.AR5':('CO2 emissions per capita (metric tons)',     'Climate',     'metric tons'),
     'EG.USE.PCAP.KG.OE':     ('Energy use per capita (kg oil equiv)',        'Energy',      'kg oil equiv'),
     'SI.POV.GINI':            ('GINI index',                                 'Social',      'index'),
     'SP.DYN.LE00.IN':        ('Life expectancy at birth (years)',            'Health',      'years'),
@@ -124,7 +124,7 @@ def fetch_wb():
                f'/indicator/{code}?format=json&per_page=500'
                f'&date={YEAR_START}:{YEAR_END}')
         try:
-            r = requests.get(url, timeout=30)
+            r = requests.get(url, timeout=60)
             r.raise_for_status()
             data = r.json()
             if len(data) < 2 or not data[1]:
@@ -289,45 +289,58 @@ PARAM_META = {
 }
 
 def fetch_nasa():
-    print("[NASA] Fetching POWER climate data for cities...")
+    """Fetch monthly POWER data and aggregate to annual means per city.
+    The /annual endpoint is deprecated; /monthly returns YYYYMM keys which
+    we group by year and average (mean for T2M and RH2M, sum for PRECTOTCORR).
+    Community=AG has the broadest parameter coverage for surface climate.
+    """
+    print("[NASA] Fetching POWER monthly climate data for cities (-> annual)...")
     rows = []
     for city in CITIES:
-        url = (f"https://power.larc.nasa.gov/api/temporal/annual/point"
-               f"?start={YEAR_START}&end={YEAR_END}"
-               f"&latitude={city['lat']}&longitude={city['lon']}"
-               f"&community=RE&parameters={NASA_PARAMS}"
-               f"&format=JSON&header=true")
+        url = (f"https://power.larc.nasa.gov/api/temporal/monthly/point"
+               f"?parameters={NASA_PARAMS}"
+               f"&community=AG"
+               f"&longitude={city['lon']}&latitude={city['lat']}"
+               f"&start={YEAR_START}&end={YEAR_END}"
+               f"&format=JSON")
         try:
             r = requests.get(url, timeout=60)
             r.raise_for_status()
             data = r.json()
             param_data = data.get('properties', {}).get('parameter', {})
             city_count = 0
-            for param, yr_vals in param_data.items():
+            for param, mon_vals in param_data.items():
                 name, cat, unit = PARAM_META.get(param, (param, 'Climate', ''))
-                for yr_str, val in yr_vals.items():
+                # Aggregate monthly YYYYMM → annual
+                yearly = {}  # {year: [monthly_values]}
+                for mon_str, val in mon_vals.items():
                     if val in (-999, -999.0, '-999', '-999.0'): continue
                     try:
-                        yr = int(yr_str)
+                        yr = int(mon_str[:4])
                         if not (YEAR_START <= yr <= YEAR_END): continue
-                        rows.append({
-                            'source':         'NASA',
-                            'iso3':           city['iso3'],
-                            'city':           city['city'],
-                            'lat':            city['lat'],
-                            'lon':            city['lon'],
-                            'year':           yr,
-                            'indicator_code': f'NASA_{param}',
-                            'indicator_name': name,
-                            'category':       cat,
-                            'unit':           unit,
-                            'value':          float(val),
-                        })
-                        city_count += 1
+                        yearly.setdefault(yr, []).append(float(val))
                     except (ValueError, TypeError):
                         continue
+                for yr, vals in yearly.items():
+                    if len(vals) < 10: continue  # skip years with <10 months
+                    # T2M and RH2M: annual mean; PRECTOTCORR: annual total / 365 (keep as daily rate)
+                    ann_val = sum(vals) / len(vals)
+                    rows.append({
+                        'source':         'NASA',
+                        'iso3':           city['iso3'],
+                        'city':           city['city'],
+                        'lat':            city['lat'],
+                        'lon':            city['lon'],
+                        'year':           yr,
+                        'indicator_code': f'NASA_{param}',
+                        'indicator_name': name,
+                        'category':       cat,
+                        'unit':           unit,
+                        'value':          round(ann_val, 4),
+                    })
+                    city_count += 1
             print(f"  [NASA] {city['city']}: {city_count} obs")
-            time.sleep(0.5)
+            time.sleep(0.3)
         except Exception as e:
             print(f"  [NASA] Error {city['city']}: {e}")
 

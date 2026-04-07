@@ -259,7 +259,7 @@ def aggregate_nasa_country(conn):
     )
     conn.commit()
     n_countries = agg['iso3'].nunique()
-    print(f"  nasa_climate.csv → country T2M: {len(rows)} rows "
+    print(f"  nasa_climate.csv -> country T2M: {len(rows)} rows "
           f"({n_countries} countries, {len(rows)//max(n_countries,1)} years avg)")
     return len(rows)
 
