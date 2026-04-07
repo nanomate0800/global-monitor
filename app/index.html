@@ -121,7 +121,6 @@ tr.hi td{color:var(--tx);}
 #tip{position:fixed;background:#0b0c10;border:1px solid var(--b2);padding:8px 11px;font-size:9px;color:var(--tx);pointer-events:none;z-index:999;display:none;max-width:240px;line-height:1.8;border-radius:3px;}
 #tip b{color:var(--wh);}
 #edge-card{position:fixed;background:#0b0c10;border:1px solid var(--b2);padding:10px 12px;font-size:9px;color:var(--tx);pointer-events:auto;z-index:1000;display:none;width:268px;border-radius:3px;box-shadow:0 8px 28px rgba(0,0,0,.8);}
-@keyframes edgePulse{0%,100%{opacity:var(--ep-base,1);stroke-width:var(--ep-w,2);}50%{opacity:1;stroke-width:calc(var(--ep-w,2)*2.2);}}
 .ec-lbl{font-size:7px;color:var(--mu);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;}
 .tr{color:var(--ph);}.tn{color:var(--nh);}
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px;}
@@ -391,12 +390,8 @@ tr.hi td{color:var(--tx);}
     </div>
     <div class="dhh" id="dh-b"></div>
     <div id="pb">
-      <div class="tabrow">
-        <div class="tabbtn on" onclick="switchTab('whatif',this)">WHAT IF?</div>
-        <div class="tabbtn" onclick="switchTab('impact',this)">VARIANCE IMPACT</div>
-      </div>
-      <!-- WHAT IF? tab — logic driver tree -->
-      <div class="tabcontent on" id="tab-whatif">
+      <!-- WHAT IF? driver tree -->
+      <div class="tabcontent on" id="tab-whatif" style="display:flex!important;flex-direction:column">
         <div class="wi-shell">
           <div class="wi-lane">
             <div class="wi-lane-hdr" style="color:var(--hy)">⬤ INPUT <span style="font-size:6px;color:var(--mu);margin-left:4px">drivers — what changes</span></div>
@@ -432,14 +427,8 @@ tr.hi td{color:var(--tx);}
           </div>
         </div>
       </div>
-      <!-- VARIANCE IMPACT tab -->
-      <div class="tabcontent" id="tab-impact">
-        <div style="padding:4px 10px 0;font-size:8px;color:var(--mu)">SCOPE: <span id="bscope" style="color:var(--mu2)">baseline</span></div>
-        <table><thead><tr>
-          <th>Node</th><th>Category</th><th>Baseline R²</th><th>Modified R²</th>
-          <th>Delta</th><th>Hop</th><th>Countries</th><th>Path</th>
-        </tr></thead><tbody id="btbody"></tbody></table>
-      </div>
+      <!-- variance impact removed -->
+      <div id="tab-impact" style="display:none"><table><tbody id="btbody"></tbody></table><span id="bscope"></span></div>
     </div>
   </div>
   <div class="dh" id="dh-r"></div>
@@ -1407,20 +1396,22 @@ function renderNet(){
   const allE=getCurEdges(),ae=getAE(),sevV=allE.filter(e=>S.severed.has(e.id)&&e.strength>=S.thr);
   const selId=S.selNode?.id;
   const connSel=selId?new Set(ae.filter(e=>nid(e.source)===selId||nid(e.target)===selId).flatMap(e=>[nid(e.source),nid(e.target)])):null;
-  // Build set of node IDs that appear in at least one active edge — hide truly isolated nodes
+  // Build set of node IDs that appear in at least one active edge (for display counts)
   const connectedIds=new Set(ae.flatMap(e=>[nid(e.source),nid(e.target)]));
   const allNodes=getNodes();
-  // In single-country view show all nodes (some may be isolated but user expects to see all indicators)
-  // In global/multi-country view hide nodes with zero edges to reduce clutter
-  const nodes=(S.level==='country'&&S.countries.length===1)
-    ? allNodes
-    : allNodes.filter(n=>connectedIds.has(n.id));
+  // Show all source-filtered nodes regardless of connectivity — isolated nodes remain visible
+  const nodes=allNodes;
   const existing={};(S.gNodes||[]).forEach(n=>existing[n.id]=n);
-  S.gNodes=nodes.map(n=>({...n,
-    x:existing[n.id]?.x??W/2+(Math.random()-.5)*300,
-    y:existing[n.id]?.y??H/2+(Math.random()-.5)*300,
-    vx:existing[n.id]?.vx??0,vy:existing[n.id]?.vy??0
-  }));
+  const dynCtrd0=getCtrd();
+  S.gNodes=nodes.map(n=>{
+    if(existing[n.id])return{...n,x:existing[n.id].x,y:existing[n.id].y,vx:existing[n.id].vx,vy:existing[n.id].vy};
+    // Pre-position new nodes near their cluster centroid to reduce initial shaking
+    const c=dynCtrd0[n.country];
+    const sc=Math.min(W,H)*0.42;
+    const bx=c?W/2+c[0]*sc:W/2;
+    const by=c?H/2+c[1]*sc:H/2;
+    return{...n,x:bx+(Math.random()-.5)*120,y:by+(Math.random()-.5)*120,vx:0,vy:0};
+  });
   const byId={};S.gNodes.forEach(n=>byId[n.id]=n);
   // Resolve source/target to node objects; drop edges where either endpoint isn't a known node
   // (prevents d3.forceLink from throwing "node not found" on cross-country edges whose
@@ -1444,8 +1435,6 @@ function renderNet(){
   const sevLines=gSev.selectAll('line').data(sevV).join('line')
     .attr('stroke','#eef0f8').attr('stroke-width',.7).attr('stroke-dasharray','2,4').attr('opacity',.25);
 
-  // Identify top-correlation edges for pulse animation (|r| >= 0.85 and cross-country)
-  const topCrossR=aeR.filter(e=>e.cross&&_eStr(e)>=0.85);
   // Edges (visual — pointer-events none, hit zone handles interactions)
   const eLines=gE.selectAll('line').data(aeR).join('line')
     .attr('stroke',d=>d.hypothetical?'#c8f060':eCol(_eCorr(d)))
@@ -1457,31 +1446,25 @@ function renderNet(){
       if(selId){const s=nid(d.source),t=nid(d.target);return(s===selId||t===selId)?op:0;}
       return op;
     })
-    .style('animation',d=>{
-      if(topCrossR.includes(d)){const w=eW(_eStr(d),d.projected);return `edgePulse 1.8s ease-in-out infinite`;}
-      return null;
-    })
-    .style('--ep-base',d=>topCrossR.includes(d)?eOp(_eStr(d),d.projected):null)
-    .style('--ep-w',d=>topCrossR.includes(d)?eW(_eStr(d),d.projected)+'px':null)
     .attr('pointer-events','none');
   // Wide invisible hit zone for forgiving hover
   const eHit=gE.selectAll('line.hit').data(aeR).join('line')
     .attr('class','hit')
-    .attr('stroke','transparent').attr('stroke-width',26)
+    .attr('stroke','rgba(0,0,0,0.001)').attr('stroke-width',26)
+    .attr('pointer-events','stroke')
     .attr('cursor',S.mode==='sever'?'pointer':'default')
     .on('mouseover',(ev,d)=>{
-      cancelHideEdgeCard();
-      // When a node is selected, only show card for its connected edges
       const sId=typeof d.source==='object'?d.source.id:d.source;
       const tId=typeof d.target==='object'?d.target.id:d.target;
       if(selId&&sId!==selId&&tId!==selId)return;
+      cancelHideEdgeCard();
       showEdgeCard(ev,d);
     })
     .on('mousemove',(ev,d)=>{
-      cancelHideEdgeCard();
       const sId=typeof d.source==='object'?d.source.id:d.source;
       const tId=typeof d.target==='object'?d.target.id:d.target;
       if(selId&&sId!==selId&&tId!==selId)return;
+      cancelHideEdgeCard();
       _posEdgeCard(ev);
     })
     .on('mouseout',hideEdgeCard)
@@ -1572,25 +1555,25 @@ function renderNet(){
   if(sim)sim.stop();
   const needsCluster=S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1);
   const dynCtrd=getCtrd();
-  // Cluster pull strength: strong enough to keep countries separate but not squash intra-cluster spread
-  const clusterStrength=needsCluster?0.80:0;
+  // Gentle cluster pull — nodes start near centroids already; this just maintains grouping
+  const clusterStrength=needsCluster?0.28:0;
   const clusterForce=needsCluster?alpha=>{
     S.gNodes.forEach(n=>{
       const c=dynCtrd[n.country];if(!c)return;
-      // use 55% of shortest dimension → more spread between clusters
-      const sc=Math.min(W,H)*0.46;
+      const sc=Math.min(W,H)*0.42;
       const tx=W/2+c[0]*sc,ty=H/2+c[1]*sc;
       n.vx+=(tx-n.x)*alpha*clusterStrength;n.vy+=(ty-n.y)*alpha*clusterStrength;
     });
   }:null;
 
   sim=d3.forceSimulation(S.gNodes)
-    .alphaDecay(.018)
+    .alphaDecay(.025)
+    .velocityDecay(.45)
     .force('link',d3.forceLink(aeR.filter(e=>!e.hypothetical&&!e.cross)).id(d=>d.id).distance(d=>200-d.strength*80).strength(.06))
     .force('link_cross',d3.forceLink(aeR.filter(e=>e.cross)).id(d=>d.id).distance(380).strength(.02))
-    .force('charge',d3.forceManyBody().strength(needsCluster?-260:-580))
-    .force('center',d3.forceCenter(W/2,H/2).strength(.008))
-    .force('collide',d3.forceCollide(d=>28+d.centrality*16))
+    .force('charge',d3.forceManyBody().strength(needsCluster?-240:-520))
+    .force('center',d3.forceCenter(W/2,H/2).strength(.006))
+    .force('collide',d3.forceCollide(d=>26+d.centrality*14))
     .force('x',d3.forceX(W/2).strength(.003)).force('y',d3.forceY(H/2).strength(.003))
     .force('cluster',clusterForce)
     .on('tick',()=>{
@@ -1608,8 +1591,8 @@ function renderNet(){
 
   const parts=[];
   const xEdges=aeR.filter(e=>e.cross).length;
-  // Count nodes hidden because they have zero active edges
-  const hiddenIsolated=(S.level==='country'&&S.countries.length===1)?0:allNodes.length-nodes.length;
+  // Count isolated nodes (no active edges) for display in rdout
+  const hiddenIsolated=(S.level==='country'&&S.countries.length===1)?0:allNodes.filter(n=>!connectedIds.has(n.id)).length;
   if(S.intlOnly){
     parts.push(`<span style="color:var(--ph)">INTL ONLY — ${xEdges} international edge${xEdges!==1?'s':''} · within-country correlations hidden</span>`);
   } else if(S.level==='global'){
@@ -1915,7 +1898,8 @@ function wiAddEntry(lane,entry){
   const arr=WI[lane];
   if(arr.length>=WI_MAX[lane]){alert(`Max ${WI_MAX[lane]} variables in ${lane}.`);return;}
   if(arr.find(e=>e.id===entry.id&&e.iso3===entry.iso3)){alert('Already added.');return;}
-  arr.push({...entry,delta:1});
+  const defaultDelta=lane==='intermediates'?0:1;
+  arr.push({...entry,delta:entry.delta!=null?entry.delta:defaultDelta});
   wiRender();
 }
 function wiRemove(lane,idx){WI[lane].splice(idx,1);wiRender();}
@@ -1926,7 +1910,16 @@ function wiRender(){
     const el=$('wi-'+lane);el.innerHTML='';
     WI[lane].forEach((v,i)=>{
       const div=document.createElement('div');div.className='wi-var';div.draggable=true;
-      div.innerHTML=`<div style="display:flex;align-items:flex-start;gap:3px"><div class="wi-var-lbl" style="flex:1">${v.label.length>36?v.label.substring(0,34)+'…':v.label}</div><span class="wi-var-rm" onclick="wiRemove('${lane}',${i})" title="Remove">×</span></div><div class="wi-var-meta"><span>${v.iso3}</span></div>${lane==='inputs'?`<div class="wi-var-delta"><span style="font-size:6.5px;color:var(--mu)">change:</span><input type="range" min="-3" max="3" step="0.5" value="${v.delta}" oninput="WI.${lane}[${i}].delta=parseFloat(this.value);this.nextElementSibling.textContent=(parseFloat(this.value)>=0?'+':'')+parseFloat(this.value)+'σ'"><span class="wi-var-delta-lbl">${v.delta>=0?'+':''}${v.delta}σ</span></div>`:''}`;
+      const hasSlider=lane!=='outputs';
+      const sliderDefault=lane==='inputs'?1:0;
+      const sliderVal=v.delta!=null?v.delta:sliderDefault;
+      div.innerHTML=`<div style="display:flex;align-items:flex-start;gap:3px"><div class="wi-var-lbl" style="flex:1">${v.label.length>36?v.label.substring(0,34)+'…':v.label}</div><span class="wi-var-rm" onclick="wiRemove('${lane}',${i})" title="Remove">×</span></div><div class="wi-var-meta"><span>${v.iso3}</span></div>${hasSlider?`<div class="wi-var-delta"><span style="font-size:6.5px;color:var(--mu)">${lane==='inputs'?'change:':'direct:'}</span><input type="range" min="-3" max="3" step="0.5" value="${sliderVal}" oninput="WI['${lane}'][${i}].delta=parseFloat(this.value);this.nextElementSibling.textContent=(parseFloat(this.value)>=0?'+':'')+parseFloat(this.value)+'σ'"><span class="wi-var-delta-lbl">${sliderVal>=0?'+':''}${sliderVal}σ</span></div>`:''}`;
+      // Prevent dragging the card when clicking on a range slider
+      div.querySelectorAll('input[type=range]').forEach(inp=>{
+        inp.addEventListener('mousedown',e=>e.stopPropagation());
+        inp.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+        inp.addEventListener('dragstart',e=>e.stopPropagation());
+      });
       el.appendChild(div);
     });
     if(!WI[lane].length)el.innerHTML=`<div class="wi-empty">Drop indicators here<br>or click "+ Add from network"<br>after selecting a node</div>`;
@@ -1973,6 +1966,12 @@ function wiRun(){
         const r1=wiGetR(inp,mid);const r2=wiGetR(mid,out);
         if(r1!=null&&r2!=null){totalDelta+=inp.delta*r1*r2;pathCount++;}
       });
+    });
+    // Direct intermediate shock → output (when intermediate slider != 0)
+    WI.intermediates.forEach(mid=>{
+      if(!mid.delta)return;
+      const r=wiGetR(mid,out);
+      if(r!=null){totalDelta+=mid.delta*r;pathCount++;}
     });
     const fc=S.fc[out.iso3]?.[out.label];
     const std=fc&&fc.values?_std(fc.values.filter(v=>v!=null&&!isNaN(v))):1;
