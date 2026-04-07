@@ -4,13 +4,36 @@ Pre-computes all static data files for the Global Monitor app.
 Run this after any database update: python3 build_data.py
 Outputs land in app/static/data/
 """
-import sys, json, sqlite3, numpy as np, pandas as pd, warnings, os
+import sys, json, sqlite3, numpy as np, pandas as pd, warnings, os, math
 from itertools import combinations, product as iproduct
 from collections import defaultdict
 from pathlib import Path
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 warnings.filterwarnings('ignore')
+
+def _f(v, decimals=4):
+    """Round float to decimals; return None for NaN/Inf (serialises as JSON null)."""
+    try:
+        if v is None or (isinstance(v, float) and not math.isfinite(v)):
+            return None
+        return round(float(v), decimals)
+    except Exception:
+        return None
+
+class _SafeEncoder(json.JSONEncoder):
+    """Converts NaN/Inf floats to null so output is always valid JSON."""
+    def iterencode(self, o, _one_shot=False):
+        # Walk the structure and sanitise floats before encoding
+        return super().iterencode(self._sanitise(o), _one_shot)
+    def _sanitise(self, obj):
+        if isinstance(obj, float):
+            return None if not math.isfinite(obj) else obj
+        if isinstance(obj, dict):
+            return {k: self._sanitise(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [self._sanitise(v) for v in obj]
+        return obj
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 
@@ -206,11 +229,11 @@ for iso3 in COUNTRIES:
             n_arimax += 1
         all_forecasts[iso3][ind_name] = {
             'years':       years,
-            'values':      [round(v, 4) for v in vals.tolist()],
+            'values':      [_f(v) for v in vals.tolist()],
             'fc_years':    FC_YEARS,
-            'fc_values':   [round(v, 4) for v in fc],
-            'fc_lo':       [round(v, 4) for v in lo],
-            'fc_hi':       [round(v, 4) for v in hi],
+            'fc_values':   [_f(v) for v in fc],
+            'fc_lo':       [_f(v) for v in lo],
+            'fc_hi':       [_f(v) for v in hi],
             'arima_order': list(order),
             'arimax':      arimax_name,   # None → plain ARIMA
         }
@@ -223,7 +246,7 @@ for iso3 in COUNTRIES:
 for iso3, fc_data in all_forecasts.items():
     path = FC_DIR / f'{iso3}.json'
     with open(path, 'w') as f:
-        json.dump(fc_data, f, separators=(',', ':'))
+        json.dump(fc_data, f, separators=(',', ':'), cls=_SafeEncoder)
 total = sum(len(v) for v in all_forecasts.values())
 print(f"  {total} total series → app/static/data/forecasts/")
 
@@ -247,6 +270,7 @@ def _quick_corr(xs, ys):
 # Only allow correlations between category pairs with a plausible mechanism.
 # Format: frozenset({cat_a, cat_b}) — symmetric, same-category pairs always allowed.
 _ALLOWED_CAT_PAIRS = {
+    # Economy
     frozenset({'Economy','Economy'}),
     frozenset({'Economy','Trade'}),
     frozenset({'Economy','SovereignDebt'}),
@@ -257,37 +281,80 @@ _ALLOWED_CAT_PAIRS = {
     frozenset({'Economy','Health'}),
     frozenset({'Economy','Social'}),
     frozenset({'Economy','Education'}),
+    frozenset({'Economy','Climate'}),       # temperature → labour productivity, ag output
+    frozenset({'Economy','Agriculture'}),
+    # SovereignDebt
     frozenset({'SovereignDebt','SovereignDebt'}),
     frozenset({'SovereignDebt','Governance'}),
     frozenset({'SovereignDebt','Economy'}),
+    frozenset({'SovereignDebt','Trade'}),   # trade deficits → debt accumulation
+    # Energy
     frozenset({'Energy','Economy'}),
     frozenset({'Energy','Environment'}),
     frozenset({'Energy','Climate'}),
     frozenset({'Energy','Energy'}),
+    frozenset({'Energy','Trade'}),          # energy is a major traded commodity
+    frozenset({'Energy','Social'}),         # energy access → human development
+    frozenset({'Energy','Health'}),         # air quality, energy poverty → health
+    frozenset({'Energy','Agriculture'}),
+    frozenset({'Energy','Governance'}),     # energy policy, resource curse
+    # Environment
     frozenset({'Environment','Climate'}),
     frozenset({'Environment','Health'}),
     frozenset({'Environment','Environment'}),
+    frozenset({'Environment','Agriculture'}),
+    # Climate (NASA T2M + CO2)
     frozenset({'Climate','Climate'}),
     frozenset({'Climate','Health'}),
     frozenset({'Climate','Energy'}),
     frozenset({'Climate','Agriculture'}),
+    frozenset({'Climate','Economy'}),       # temperature → GDP, labour productivity
+    frozenset({'Climate','Trade'}),         # climate → ag exports, commodity prices
+    frozenset({'Climate','Social'}),        # extreme weather → displacement
+    frozenset({'Climate','Demographic'}),   # climate migration
+    frozenset({'Climate','Demographics'}),
+    # Health
     frozenset({'Health','Health'}),
     frozenset({'Health','Social'}),
     frozenset({'Health','Education'}),
     frozenset({'Health','Demographics'}),
     frozenset({'Health','Demographic'}),
+    frozenset({'Health','Governance'}),     # health systems quality
+    frozenset({'Health','Trade'}),          # pharmaceutical access
+    # Social
     frozenset({'Social','Social'}),
     frozenset({'Social','Education'}),
     frozenset({'Social','Demographics'}),
     frozenset({'Social','Demographic'}),
+    frozenset({'Social','Governance'}),
+    frozenset({'Social','Trade'}),          # trade openness → labour markets
+    # Education
     frozenset({'Education','Education'}),
     frozenset({'Education','Demographics'}),
     frozenset({'Education','Demographic'}),
+    frozenset({'Education','Governance'}),
+    # Trade
     frozenset({'Trade','Trade'}),
     frozenset({'Trade','Economy'}),
+    frozenset({'Trade','Health'}),
+    frozenset({'Trade','Social'}),
+    frozenset({'Trade','Climate'}),
+    frozenset({'Trade','Agriculture'}),
+    # Governance (FastTrack — democracy, corruption, press freedom)
     frozenset({'Governance','Governance'}),
+    frozenset({'Governance','Economy'}),
+    frozenset({'Governance','Health'}),
+    frozenset({'Governance','Social'}),
+    frozenset({'Governance','Education'}),
+    frozenset({'Governance','Trade'}),
+    frozenset({'Governance','Demographic'}),
+    frozenset({'Governance','Demographics'}),
+    frozenset({'Governance','SovereignDebt'}),
+    frozenset({'Governance','Agriculture'}),
+    # Demographics
     frozenset({'Demographics','Demographics'}),
     frozenset({'Demographic','Demographic'}),
+    # Agriculture
     frozenset({'Agriculture','Agriculture'}),
     frozenset({'Agriculture','Economy'}),
     frozenset({'Agriculture','Climate'}),
@@ -298,6 +365,7 @@ _ALLOWED_CAT_PAIRS = {
     frozenset({'Agriculture','Demographics'}),
     frozenset({'Agriculture','Demographic'}),
     frozenset({'Agriculture','Energy'}),
+    frozenset({'Agriculture','Governance'}),
 }
 
 def _domain_allowed(cat_a, cat_b):
@@ -512,7 +580,7 @@ for iso3 in COUNTRIES:
             'is_forecast': is_proj, 'edges': edges
         }
         fname = CORR_DIR / f'{iso3}_{y1}_{y2}.json'
-        with open(fname,'w') as f: json.dump(out, f, separators=(',',':'))
+        with open(fname,'w') as f: json.dump(out, f, separators=(',',':'), cls=_SafeEncoder)
         corr_count += len(edges)
 
 # Global correlations
@@ -524,7 +592,7 @@ for ind_name in df['indicator_name'].unique():
 for (y1,y2) in YEAR_WINDOWS:
     edges = compute_corr(data_dict_g, y1, y2, cat_map=cat_map)
     out = {'iso3':'GLOBAL','year_start':y1,'year_end':y2,'is_forecast':y2>HIST_END,'edges':edges}
-    with open(CORR_DIR/f'GLOBAL_{y1}_{y2}.json','w') as f: json.dump(out,f,separators=(',',':'))
+    with open(CORR_DIR/f'GLOBAL_{y1}_{y2}.json','w') as f: json.dump(out, f, separators=(',',':'), cls=_SafeEncoder)
 
 print(f"  {corr_count} correlation entries → app/static/data/correlations/")
 
@@ -571,7 +639,7 @@ for k,edges in grp.items():
 cross_filtered.sort(key=lambda x:-x['strength'])
 
 with open(OUT_BASE/'cross_country.json','w') as f:
-    json.dump(cross_filtered, f, separators=(',',':'))
+    json.dump(cross_filtered, f, separators=(',',':'), cls=_SafeEncoder)
 print(f"  {len(cross_filtered)} cross-country edges → app/static/data/cross_country.json")
 
 # ── STEP 4: CITY DATA + RISK SIGNALS ──
@@ -622,7 +690,7 @@ THEME_INDICATORS = {
     'Energy':        ['Energy use per capita (kg oil equiv)','Access to electricity (% of population)','Renewable energy share in total final energy consumption (%)'],
     'Minerals':      [],
     'SovereignDebt': ['General govt gross debt (% of GDP)'],
-    'Geopolitical':  [],
+    'Geopolitical':  ['Democracy Index (EIU)','Corruption Perception Index','Political Stability Index'],
     'Health':        ['Life expectancy at birth (years)'],
     'Demographic':   ['Total population'],
     'Agriculture':   ['Crop production index (2014-2016=100)','Food production index (2014-2016=100)','Arable land (% of land area)','Prevalence of undernourishment (% of population)'],
@@ -693,7 +761,7 @@ meta = {
     }
 }
 
-with open(OUT_BASE/'meta.json','w') as f: json.dump(meta, f, separators=(',',':'))
+with open(OUT_BASE/'meta.json','w') as f: json.dump(meta, f, separators=(',',':'), cls=_SafeEncoder)
 print(f"  Meta payload → app/static/data/meta.json ({os.path.getsize(OUT_BASE/'meta.json')//1024}KB)")
 
 # Summary

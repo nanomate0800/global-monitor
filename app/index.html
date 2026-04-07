@@ -262,6 +262,7 @@ tr.hi td{color:var(--tx);}
       <div class="nav-dropdown" id="nd-level">
         <div class="nav-option" onclick="setLevel('global')"><span class="odot" style="background:var(--b3)"></span>All Countries</div>
         <div class="nav-option" onclick="setLevel('country')"><span class="odot" style="background:var(--b3)"></span>Multi-Country</div>
+        <div class="nav-option" onclick="setLevel('intercity')"><span class="odot" style="background:var(--b3)"></span>City Climate</div>
       </div>
     </div>
     <span class="nav-sep" id="nav-sep1" style="display:none">›</span>
@@ -349,6 +350,7 @@ tr.hi td{color:var(--tx);}
         <div class="src-row" onclick="toggleSrc('Comtrade')"><div class="src-chk" id="sc-Comtrade"></div><div class="src-dot" style="background:var(--b3)"></div>UN Comtrade (Trade)</div>
         <div class="src-row" onclick="toggleSrc('IEA')"><div class="src-chk" id="sc-IEA"></div><div class="src-dot" style="background:var(--b3)"></div>IEA (Energy)</div>
         <div class="src-row" onclick="toggleSrc('FAOSTAT')"><div class="src-chk" id="sc-FAOSTAT"></div><div class="src-dot" style="background:var(--b3)"></div>FAOSTAT (Agriculture)</div>
+        <div class="src-row" onclick="toggleSrc('FastTrack')"><div class="src-chk" id="sc-FastTrack"></div><div class="src-dot" style="background:var(--b3)"></div>Gapminder (Governance)</div>
       </div>
     </div>
   </div>
@@ -859,17 +861,17 @@ async function applyCountryChange(){
 }
 
 async function setLevel(lv){
-  if(lv==='intercity'||lv==='cross')lv='country'; // removed views redirect to country
   S.level=lv;S.severed.clear();S.hyp=[];S.selNode=null;S.addSrc=null;
   S.intlOnly=false;const itBtn=$('intl-toggle');if(itBtn)itBtn.style.color='';
   const cNames=S.countries.map(c=>CNAME[c]||c).join(', ');
-  const lvLabels={global:'ALL COUNTRIES',cross:'INTERNATIONAL LINKS',country:'MULTI-COUNTRY'};
+  const lvLabels={global:'ALL COUNTRIES',cross:'INTERNATIONAL LINKS',country:'MULTI-COUNTRY',intercity:'CITY CLIMATE'};
   $('level-label').textContent=lvLabels[lv]||lv.toUpperCase();
-  const showC=lv==='country';
+  const showC=lv==='country'||lv==='intercity';
   $('nav-sep1').style.display=showC?'flex':'none';
   $('ns-country').style.display=showC?'flex':'none';
   const netLabels={global:'ALL COUNTRIES — WITHIN + INTERNATIONAL EDGES',cross:'INTERNATIONAL LINKS — CROSS-COUNTRY ONLY',
-    country:S.countries.length===1?`COUNTRY — ${cNames}`:`MULTI-COUNTRY — ${cNames}`};
+    country:S.countries.length===1?`COUNTRY — ${cNames}`:`MULTI-COUNTRY — ${cNames}`,
+    intercity:`CITY CLIMATE — ${cNames} (NASA temperature, precipitation, humidity)`};
   $('net-label').textContent=netLabels[lv]||lv;
   document.querySelectorAll('.nav-dropdown').forEach(d=>d.classList.remove('open'));
   if(lv==='country'){for(const iso3 of S.countries) await loadCorr(iso3,S.yS,S.yE);}
@@ -902,9 +904,10 @@ function toggleSrcPanel(){
 }
 // Returns the set of node categories currently active based on selected data sources
 function getActiveCats(){
-  const SRC_CAT_MAP={'WB':['Economy','Energy','Trade','Governance','Social','Health','Education','Demographics','Demographic','Environment'],
+  const SRC_CAT_MAP={'WB':['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment'],
     'IMF':['SovereignDebt'],'UNDP':['Social'],'NASA':['Climate'],
-    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture']};
+    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture'],
+    'FastTrack':['Governance']};
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
   return cats;
@@ -1120,9 +1123,10 @@ function buildNodeList(){
   const tree=$('ntree');if(!tree)return;tree.innerHTML='';
 
   // Source → category mapping for source filtering
-  const SRC_CAT={'WB':['Economy','Energy','Trade','Governance','Social','Health','Education','Demographics','Demographic','Environment'],
+  const SRC_CAT={'WB':['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment'],
     'IMF':['SovereignDebt'],'UNDP':['Social'],'NASA':['Climate'],
-    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture']};
+    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture'],
+    'FastTrack':['Governance']};
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
 
@@ -1403,7 +1407,16 @@ function updateSevList(){
   S.severed.forEach(id=>{const e=getCurEdges().find(e=>e.id===id);if(!e)return;const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--sv)">x</span> ${stripPfx(nid(e.source)).substring(0,20)} — ${stripPfx(nid(e.target)).substring(0,20)}<br><span style="color:var(--mu)">r=${e.correlation}</span>`;list.appendChild(d);});
   S.hyp.forEach(e=>{const d=document.createElement('div');d.className='sev-item';d.innerHTML=`<span style="color:var(--hy)">+</span> ${e.source.toString().substring(0,20)} — ${e.target.toString().substring(0,20)}<br><span style="color:var(--mu)">hypothetical</span>`;list.appendChild(d);});
 }
-function restoreAll(){S.severed.clear();S.hyp=[];S.addSrc=null;updateSevList();updateResetBtn();renderNet();const ae=getAE();renderImpact('restored',getNodes(),ae,ae);}
+function restoreAll(){
+  S.severed.clear();S.hyp=[];S.addSrc=null;S.selNode=null;
+  clearNodeDet();
+  updateSevList();updateResetBtn();
+  // Reset network zoom/pan to identity
+  const svgEl=$('nsvg');
+  if(svgEl&&netZoom)d3.select(svgEl).call(netZoom.transform,d3.zoomIdentity);
+  renderNet();
+  const ae=getAE();renderImpact('restored',getNodes(),ae,ae);
+}
 
 // ── NETWORK ──
 let sim=null,netZoom=null;

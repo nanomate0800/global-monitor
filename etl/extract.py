@@ -751,6 +751,78 @@ def fetch_faostat():
     print(f"  [FAOSTAT] Saved {len(df)} rows -> data/raw/faostat_agriculture.csv")
     return df
 
+FASTTRACK_BASE = "https://raw.githubusercontent.com/open-numbers/ddf--gapminder--fasttrack/master/countries_etc_datapoints"
+# Gapminder 3-letter lowercase country code → ISO3
+CTRY_ISO3 = {
+    'usa':'USA','ken':'KEN','bra':'BRA','deu':'DEU','chn':'CHN',
+    'rus':'RUS','sgp':'SGP','ind':'IND','jpn':'JPN','idn':'IDN',
+}
+# DDF concept name → (display name, category, unit)
+# Files are ddf--datapoints--{concept}--by--country--time.csv
+FASTTRACK_TARGETS = {
+    'demox_eiu':
+        ('Democracy Index (EIU)', 'Governance', 'score 0-100'),
+    'corruption_perception_index_cpi':
+        ('Corruption Perception Index', 'Governance', 'score 0-100'),
+    'fexpression_idea':
+        ('Freedom of Expression Index', 'Governance', 'score 0-100'),
+    'gendereq_idea':
+        ('Gender Equality Index (IDEA)', 'Social', 'score 0-100'),
+    'child_mortality_0_5_year_olds_dying_per_1000_born':
+        ('Child Mortality (0-5 years)', 'Health', 'per 1000 births'),
+    'co2_pcap_terr':
+        ('CO2 Emissions per Capita (territorial)', 'Climate', 'tonnes/person'),
+    'co2_pcap_cons':
+        ('CO2 Emissions per Capita (consumption)', 'Climate', 'tonnes/person'),
+    'carbonfp_pcap':
+        ('Carbon Footprint per Capita', 'Climate', 'tonnes CO2e/person'),
+    'journaprison':
+        ('Journalists Imprisoned', 'Governance', 'count'),
+}
+
+def fetch_fasttrack():
+    """Fetch Gapminder FastTrack governance/social indicators from GitHub DDF CSVs."""
+    from io import StringIO
+    print("[FastTrack] Fetching Gapminder FastTrack governance/social indicators...")
+    rows = []
+    for concept, (name, cat, unit) in FASTTRACK_TARGETS.items():
+        url = f"{FASTTRACK_BASE}/ddf--datapoints--{concept}--by--country--time.csv"
+        try:
+            r = requests.get(url, timeout=30)
+            if r.status_code != 200:
+                print(f"  [FastTrack] No file for {concept} ({r.status_code})")
+                continue
+            df = pd.read_csv(StringIO(r.text))
+            # Columns: country, time, <concept>
+            concept_col = concept if concept in df.columns else df.columns[2]
+            df = df[df['country'].isin(CTRY_ISO3.keys())]
+            df = df[(df['time'] >= YEAR_START) & (df['time'] <= YEAR_END)]
+            df = df.dropna(subset=[concept_col])
+            for _, row in df.iterrows():
+                rows.append({
+                    'iso3':           CTRY_ISO3[row['country']],
+                    'indicator_code': f"FT_{concept[:28].upper()}",
+                    'indicator_name': name,
+                    'category':       cat,
+                    'unit':           unit,
+                    'year':           int(row['time']),
+                    'value':          float(row[concept_col]),
+                })
+            print(f"  [FastTrack] {name}: {len(df)} obs")
+        except Exception as e:
+            print(f"  [FastTrack] Error {concept}: {e}")
+        time.sleep(0.3)
+
+    if not rows:
+        print("  [FastTrack] No data retrieved")
+        return pd.DataFrame()
+
+    out = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
+    out.to_csv(RAW_DIR / 'fasttrack_governance.csv', index=False)
+    print(f"  [FastTrack] Saved {len(out)} rows -> data/raw/fasttrack_governance.csv")
+    return out
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -762,4 +834,5 @@ if __name__ == '__main__':
     fetch_comtrade()
     fetch_iea()
     fetch_faostat()
+    fetch_fasttrack()
     print("\nExtract complete. Run etl/load.py next.")
