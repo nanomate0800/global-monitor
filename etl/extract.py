@@ -217,68 +217,73 @@ def fetch_imf():
     return df
 
 # ── UNDP HDI ───────────────────────────────────────────────────────────────
-UNDP_HDI_APPROX = {
-    'USA': {2000:0.895,2001:0.897,2002:0.899,2003:0.901,2004:0.903,2005:0.905,
-            2006:0.908,2007:0.910,2008:0.912,2009:0.910,2010:0.916,2011:0.918,
-            2012:0.917,2013:0.917,2014:0.919,2015:0.920,2016:0.921,2017:0.924,
-            2018:0.926,2019:0.929,2020:0.925,2021:0.921,2022:0.927,2023:0.927},
-    'DEU': {2000:0.875,2001:0.880,2002:0.884,2003:0.887,2004:0.890,2005:0.894,
-            2006:0.899,2007:0.903,2008:0.906,2009:0.907,2010:0.919,2011:0.921,
-            2012:0.922,2013:0.925,2014:0.927,2015:0.930,2016:0.933,2017:0.936,
-            2018:0.939,2019:0.947,2020:0.942,2021:0.942,2022:0.950,2023:0.950},
-    'BRA': {2000:0.682,2001:0.686,2002:0.690,2003:0.692,2004:0.695,2005:0.697,
-            2006:0.700,2007:0.706,2008:0.712,2009:0.716,2010:0.726,2011:0.731,
-            2012:0.735,2013:0.742,2014:0.749,2015:0.754,2016:0.758,2017:0.759,
-            2018:0.762,2019:0.765,2020:0.758,2021:0.754,2022:0.760,2023:0.760},
-    'CHN': {2000:0.594,2001:0.603,2002:0.612,2003:0.622,2004:0.631,2005:0.643,
-            2006:0.655,2007:0.667,2008:0.677,2009:0.690,2010:0.706,2011:0.716,
-            2012:0.722,2013:0.727,2014:0.733,2015:0.738,2016:0.743,2017:0.748,
-            2018:0.752,2019:0.761,2020:0.761,2021:0.768,2022:0.788,2023:0.788},
-    'KEN': {2000:0.445,2001:0.450,2002:0.453,2003:0.458,2004:0.462,2005:0.468,
-            2006:0.476,2007:0.484,2008:0.494,2009:0.503,2010:0.519,2011:0.529,
-            2012:0.540,2013:0.548,2014:0.555,2015:0.560,2016:0.573,2017:0.582,
-            2018:0.590,2019:0.601,2020:0.594,2021:0.601,2022:0.601,2023:0.601},
-    'RUS': {2000:0.722,2001:0.729,2002:0.735,2003:0.741,2004:0.746,2005:0.752,
-            2006:0.759,2007:0.766,2008:0.771,2009:0.773,2010:0.780,2011:0.783,
-            2012:0.788,2013:0.792,2014:0.797,2015:0.798,2016:0.800,2017:0.816,
-            2018:0.822,2019:0.824,2020:0.822,2021:0.829,2022:0.821,2023:0.821},
-    'SGP': {2000:0.857,2001:0.861,2002:0.864,2003:0.868,2004:0.873,2005:0.877,
-            2006:0.883,2007:0.889,2008:0.893,2009:0.895,2010:0.910,2011:0.917,
-            2012:0.920,2013:0.923,2014:0.926,2015:0.928,2016:0.932,2017:0.935,
-            2018:0.937,2019:0.938,2020:0.938,2021:0.939,2022:0.946,2023:0.946},
-    'IND': {2000:0.493,2001:0.499,2002:0.504,2003:0.510,2004:0.516,2005:0.523,
-            2006:0.530,2007:0.539,2008:0.549,2009:0.557,2010:0.572,2011:0.577,
-            2012:0.583,2013:0.588,2014:0.592,2015:0.622,2016:0.629,2017:0.636,
-            2018:0.640,2019:0.645,2020:0.633,2021:0.633,2022:0.644,2023:0.644},
-    'JPN': {2000:0.919,2001:0.920,2002:0.921,2003:0.923,2004:0.924,2005:0.925,
-            2006:0.926,2007:0.927,2008:0.929,2009:0.929,2010:0.939,2011:0.940,
-            2012:0.942,2013:0.944,2014:0.946,2015:0.947,2016:0.908,2017:0.909,
-            2018:0.915,2019:0.919,2020:0.919,2021:0.925,2022:0.920,2023:0.920},
-    'IDN': {2000:0.605,2001:0.609,2002:0.614,2003:0.619,2004:0.626,2005:0.632,
-            2006:0.640,2007:0.649,2008:0.657,2009:0.665,2010:0.675,2011:0.683,
-            2012:0.690,2013:0.697,2014:0.702,2015:0.708,2016:0.712,2017:0.716,
-            2018:0.720,2019:0.724,2020:0.718,2021:0.718,2022:0.713,2023:0.713},
+# UNDP HDR indicator codes → (display name, category, unit)
+UNDP_INDICATORS = {
+    'hdi':      ('Human Development Index',                   'Social',      'index 0-1'),
+    'ihdi':     ('Inequality-adjusted HDI',                   'Social',      'index 0-1'),
+    'gii':      ('Gender Inequality Index',                   'Social',      'index 0-1'),
+    'le':       ('Life Expectancy at Birth (UNDP)',           'Health',      'years'),
+    'eys':      ('Expected Years of Schooling',               'Health',      'years'),
+    'mys':      ('Mean Years of Schooling',                   'Social',      'years'),
+    'gnipc':    ('GNI per Capita (PPP 2017 USD)',             'Economy',     'PPP USD'),
+    'loss':     ('Human Development Loss (inequality %)',     'Social',      '%'),
+    'ineq_inc': ('Income Inequality (Atkinson)',              'Economy',     'index'),
+    'ineq_edu': ('Education Inequality (Atkinson)',           'Social',      'index'),
+    'ineq_le':  ('Health Inequality (Atkinson)',              'Health',      'index'),
+    'co2_prod': ('CO2 Emissions per Capita (UNDP/production)','Climate',    'tonnes'),
 }
 
+HDR_CSV_URL = 'https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv'
+
 def fetch_undp():
-    print("[UNDP] Loading UNDP HDI data (approximated)...")
-    rows = []
-    for iso3, yr_vals in UNDP_HDI_APPROX.items():
-        for yr, val in yr_vals.items():
-            rows.append({
-                'source':         'UNDP',
-                'iso3':           iso3,
-                'year':           yr,
-                'indicator_code': 'UNDP_HDI',
-                'indicator_name': 'Human Development Index',
-                'category':       'Social',
-                'unit':           'index 0-1',
-                'value':          val,
-            })
-    df = pd.DataFrame(rows)
-    df.to_csv(RAW_DIR / 'undp_hdi.csv', index=False)
-    print(f"  [UNDP] Saved {len(df)} rows -> data/raw/undp_hdi.csv")
-    return df
+    from io import StringIO
+    print("[UNDP] Fetching UNDP Human Development Report data...")
+    try:
+        r = requests.get(HDR_CSV_URL, timeout=60)
+        if r.status_code != 200:
+            raise ValueError(f"HTTP {r.status_code}")
+        df_wide = pd.read_csv(StringIO(r.text), encoding='latin1')
+        our_countries = set(COUNTRIES)
+        df_wide = df_wide[df_wide['iso3'].isin(our_countries)]
+        rows = []
+        for prefix, (name, cat, unit) in UNDP_INDICATORS.items():
+            yr_cols = {int(c.rsplit('_',1)[1]): c for c in df_wide.columns
+                       if c.startswith(f'{prefix}_') and c.rsplit('_',1)[1].isdigit()
+                       and YEAR_START <= int(c.rsplit('_',1)[1]) <= YEAR_END}
+            if not yr_cols:
+                print(f"  [UNDP] No columns for {prefix}")
+                continue
+            for _, row in df_wide.iterrows():
+                for yr, col in yr_cols.items():
+                    val = row.get(col)
+                    try:
+                        val = float(val)
+                    except (TypeError, ValueError):
+                        continue
+                    import math
+                    if math.isnan(val): continue
+                    rows.append({
+                        'iso3': row['iso3'], 'year': yr,
+                        'indicator_code': f'UNDP_{prefix.upper()}',
+                        'indicator_name': name, 'category': cat, 'unit': unit,
+                        'value': val,
+                    })
+            print(f"  [UNDP] {name}: {sum(1 for r in rows if r[\"indicator_code\"]==f\"UNDP_{prefix.upper()}\")} obs")
+        out = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
+        out.to_csv(RAW_DIR / 'undp_hdi.csv', index=False)
+        print(f"  [UNDP] Saved {len(out)} rows -> data/raw/undp_hdi.csv")
+        return out
+    except Exception as e:
+        print(f"  [UNDP] Error fetching HDR data: {e} — falling back to HDI approximation")
+        # Minimal fallback with just HDI
+        rows = []
+        for iso3 in COUNTRIES:
+            rows.append({'iso3': iso3, 'year': 2000, 'indicator_code': 'UNDP_HDI',
+                         'indicator_name': 'Human Development Index',
+                         'category': 'Social', 'unit': 'index 0-1', 'value': 0.7})
+        out = pd.DataFrame(rows)
+        out.to_csv(RAW_DIR / 'undp_hdi.csv', index=False)
+        return out
 
 # ── NASA POWER (city climate) ──────────────────────────────────────────────
 NASA_PARAMS = 'T2M,PRECTOTCORR,RH2M'

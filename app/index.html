@@ -346,11 +346,11 @@ tr.hi td{color:var(--tx);}
         <div class="src-row" onclick="toggleSrc('WB')"><div class="src-chk on" id="sc-WB">✓</div><div class="src-dot" style="background:var(--b3)"></div>World Bank (Economic)</div>
         <div class="src-row" onclick="toggleSrc('IMF')"><div class="src-chk on" id="sc-IMF">✓</div><div class="src-dot" style="background:var(--b3)"></div>IMF (Sovereign Debt)</div>
         <div class="src-row" onclick="toggleSrc('UNDP')"><div class="src-chk on" id="sc-UNDP">✓</div><div class="src-dot" style="background:var(--b3)"></div>UNDP (HDI/Social)</div>
-        <div class="src-row" onclick="toggleSrc('NASA')"><div class="src-chk" id="sc-NASA"></div><div class="src-dot" style="background:var(--b3)"></div>NASA (Climate / GISS)</div>
-        <div class="src-row" onclick="toggleSrc('Comtrade')"><div class="src-chk" id="sc-Comtrade"></div><div class="src-dot" style="background:var(--b3)"></div>UN Comtrade (Trade)</div>
-        <div class="src-row" onclick="toggleSrc('IEA')"><div class="src-chk" id="sc-IEA"></div><div class="src-dot" style="background:var(--b3)"></div>IEA (Energy)</div>
-        <div class="src-row" onclick="toggleSrc('FAOSTAT')"><div class="src-chk" id="sc-FAOSTAT"></div><div class="src-dot" style="background:var(--b3)"></div>FAOSTAT (Agriculture)</div>
-        <div class="src-row" onclick="toggleSrc('FastTrack')"><div class="src-chk" id="sc-FastTrack"></div><div class="src-dot" style="background:var(--b3)"></div>Gapminder (Governance)</div>
+        <div class="src-row" onclick="toggleSrc('NASA')"><div class="src-chk on" id="sc-NASA">✓</div><div class="src-dot" style="background:var(--b3)"></div>NASA (Climate / GISS)</div>
+        <div class="src-row" onclick="toggleSrc('Comtrade')"><div class="src-chk on" id="sc-Comtrade">✓</div><div class="src-dot" style="background:var(--b3)"></div>UN Comtrade (Trade)</div>
+        <div class="src-row" onclick="toggleSrc('IEA')"><div class="src-chk on" id="sc-IEA">✓</div><div class="src-dot" style="background:var(--b3)"></div>IEA (Energy)</div>
+        <div class="src-row" onclick="toggleSrc('FAOSTAT')"><div class="src-chk on" id="sc-FAOSTAT">✓</div><div class="src-dot" style="background:var(--b3)"></div>FAOSTAT (Agriculture)</div>
+        <div class="src-row" onclick="toggleSrc('FastTrack')"><div class="src-chk on" id="sc-FastTrack">✓</div><div class="src-dot" style="background:var(--b3)"></div>Gapminder (Governance)</div>
       </div>
     </div>
   </div>
@@ -512,7 +512,7 @@ const SCAT_COLOR={Economic:'#4a7fb5',Social:'#9a7ab5',Environmental:'#4ab56a',Ot
 const S={level:'global',countries:['USA'],mode:'explore',thr:.35,sign:'both',yS:2000,yE:2023,
   severed:new Set(),hyp:[],selNode:null,addSrc:null,gNodes:[],
   meta:null,corr:{},fc:{},cross:[],globeStyle:'dark',partialR:false,_gf:null,showFlags:false,intlOnly:false,
-  sources:new Set(['WB','IMF','UNDP'])};
+  sources:new Set(['WB','IMF','UNDP','NASA','IEA','Comtrade','FAOSTAT','FastTrack'])};
 // Backwards compat getter
 Object.defineProperty(S,'country',{get(){return S.countries[0]||'USA'},set(v){S.countries=[v];}});
 
@@ -904,10 +904,16 @@ function toggleSrcPanel(){
 }
 // Returns the set of node categories currently active based on selected data sources
 function getActiveCats(){
-  const SRC_CAT_MAP={'WB':['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment'],
-    'IMF':['SovereignDebt'],'UNDP':['Social'],'NASA':['Climate'],
-    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture'],
-    'FastTrack':['Governance']};
+  const SRC_CAT_MAP={
+    'WB':   ['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment','Climate'],
+    'IMF':  ['SovereignDebt'],
+    'UNDP': ['Social','Health'],
+    'NASA': ['Climate'],
+    'Comtrade':  ['Trade'],
+    'IEA':       ['Energy'],
+    'FAOSTAT':   ['Agriculture'],
+    'FastTrack': ['Governance','Climate','Social'],
+  };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
   return cats;
@@ -1123,10 +1129,16 @@ function buildNodeList(){
   const tree=$('ntree');if(!tree)return;tree.innerHTML='';
 
   // Source → category mapping for source filtering
-  const SRC_CAT={'WB':['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment'],
-    'IMF':['SovereignDebt'],'UNDP':['Social'],'NASA':['Climate'],
-    'Comtrade':['Trade'],'IEA':['Energy'],'FAOSTAT':['Agriculture'],
-    'FastTrack':['Governance']};
+  const SRC_CAT={
+    'WB':   ['Economy','Energy','Trade','Social','Health','Education','Demographics','Demographic','Environment','Climate'],
+    'IMF':  ['SovereignDebt'],
+    'UNDP': ['Social','Health'],
+    'NASA': ['Climate'],
+    'Comtrade':  ['Trade'],
+    'IEA':       ['Energy'],
+    'FAOSTAT':   ['Agriculture'],
+    'FastTrack': ['Governance','Climate','Social'],
+  };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
 
