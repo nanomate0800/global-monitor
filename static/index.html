@@ -1232,13 +1232,13 @@ function eW(s,p){if(p)return 0.4+s*.5;return 0.4+Math.pow(s,2.2)*4.5;}
 async function loadData(prog){
   prog(10,'Metadata + cross-country...');
   const [metaData,crossData]=await Promise.all([
-    fetch('static/data/meta.json').then(r=>r.json()),
-    fetch('static/data/cross_country.json').then(r=>r.json())
+    fetch('data/meta.json').then(r=>r.json()),
+    fetch('data/cross_country.json').then(r=>r.json())
   ]);
   S.meta=metaData;S.cross=crossData;
   prog(30,'Forecasts...');
   const fcResults=await Promise.all(S.meta.countries.map(iso3=>
-    fetch(`static/data/forecasts/${iso3}.json`).then(r=>r.json()).then(d=>({iso3,d}))
+    fetch(`data/forecasts/${iso3}.json`).then(r=>r.json()).then(d=>({iso3,d}))
   ));
   fcResults.forEach(({iso3,d})=>{S.fc[iso3]=d;});
   prog(60,'Correlations...');
@@ -1252,7 +1252,7 @@ async function loadData(prog){
 async function loadCorr(iso3,y1,y2){
   const k=`${iso3}_${y1}_${y2}`;
   if(Array.isArray(S.corr[k])) return S.corr[k]; // only use cache if it's a real array (not null/failed)
-  try{const d=await fetch(`static/data/correlations/${k}.json`).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();});S.corr[k]=d.edges||[];return S.corr[k];}
+  try{const d=await fetch(`data/correlations/${k}.json`).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();});S.corr[k]=d.edges||[];return S.corr[k];}
   catch{S.corr[k]=null;return[];} // null = failed, so next call retries
 }
 

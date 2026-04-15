@@ -1,7 +1,14 @@
-# Generated data (rebuild with: python etl/extract.py && python etl/load.py && python build_data.py)
-db/
-data/
-app/static/data/
+# Generated data — rebuild locally via:
+#   python etl/extract.py && python etl/load.py && python build_data.py
+# Only the deployment bundle under static/ is tracked (see explicit allowlist below).
+/db/
+/data/
+/app/static/data/
+/etl/global_monitor.db
+
+# Explicitly track the Streamlit deployment bundle.
+!/static/
+!/static/**
 
 # Python
 __pycache__/
@@ -9,3 +16,12 @@ __pycache__/
 *.pyo
 .env
 venv/
+.venv/
+
+# Claude session artifacts
+.claude/
+
+# Scratch files
+_temp_*.js
+_temp_*.py
+*.log

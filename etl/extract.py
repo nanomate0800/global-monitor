@@ -16,7 +16,7 @@ RAW_DIR  = BASE / 'data' / 'raw'
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 COUNTRIES = ['USA', 'KEN', 'BRA', 'DEU', 'CHN', 'RUS', 'SGP', 'IND', 'JPN', 'IDN']
-YEAR_START, YEAR_END = 2000, 2023
+YEAR_START, YEAR_END = 2000, 2025
 
 # UN Comtrade reporter codes (ISO numeric → ISO3 mapping for our countries)
 COMTRADE_REPORTERS = {
@@ -268,7 +268,8 @@ def fetch_undp():
                         'indicator_name': name, 'category': cat, 'unit': unit,
                         'value': val,
                     })
-            print(f"  [UNDP] {name}: {sum(1 for r in rows if r[\"indicator_code\"]==f\"UNDP_{prefix.upper()}\")} obs")
+            code_match = f"UNDP_{prefix.upper()}"
+            print(f"  [UNDP] {name}: {sum(1 for r in rows if r['indicator_code']==code_match)} obs")
         out = pd.DataFrame(rows).drop_duplicates(subset=['iso3','year','indicator_code'])
         out.to_csv(RAW_DIR / 'undp_hdi.csv', index=False)
         print(f"  [UNDP] Saved {len(out)} rows -> data/raw/undp_hdi.csv")
@@ -833,6 +834,356 @@ def fetch_fasttrack():
     return out
 
 
+def fetch_stocks():
+    """Download historical stock data from Yahoo Finance via yfinance."""
+    print("\n[Stocks] Fetching stock data from Yahoo Finance...")
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("  [Stocks] yfinance not installed — skipping. Run: pip install yfinance")
+        return pd.DataFrame()
+
+    TICKERS = {'BHP': 'BHP.AX', 'Capstone': 'CS.TO', 'RioTinto': 'RIO', 'Toyota': 'TM'}
+    rows = []
+    for name, symbol in TICKERS.items():
+        try:
+            print(f"  Downloading {name} ({symbol})...")
+            tk = yf.Ticker(symbol)
+            hist = tk.history(start='2000-01-01', period='max', interval='1mo')
+            if hist.empty:
+                print(f"  [Stocks] No data for {symbol}, skipping")
+                continue
+            # Resample to annual average close price
+            hist.index = pd.to_datetime(hist.index)
+            annual = hist['Close'].resample('YE').mean().dropna()
+            for dt, val in annual.items():
+                rows.append({
+                    'year': dt.year,
+                    'indicator': f'{name}_Close',
+                    'value': round(float(val), 4),
+                    'country': 'STOCKS',
+                    'category': 'Financial Markets',
+                    'source': 'Yahoo Finance',
+                    'iso3': 'STOCKS',
+                    'indicator_name': f'{name}_Close',
+                })
+        except Exception as e:
+            print(f"  [Stocks] Error fetching {symbol}: {e}")
+            continue
+
+    if rows:
+        out = pd.DataFrame(rows)
+        out.to_csv(RAW_DIR / 'stocks.csv', index=False)
+        print(f"  [Stocks] Saved {len(out)} rows -> data/raw/stocks.csv")
+        return out
+    else:
+        print("  [Stocks] No stock data collected")
+        return pd.DataFrame()
+
+
+# ── WHO GHO (Global Health Observatory) ──
+WHO_INDICATORS = {
+    'WHOSIS_000001': ('Life expectancy at birth (WHO)',                 'Health', 'years'),
+    'MDG_0000000001':('Under-5 mortality rate',                        'Health', 'per 1000 live births'),
+    'NCD_BMI_30A':   ('Prevalence of obesity among adults (BMI>=30)',   'Health', '%'),
+    'HWF_0001':      ('Physicians density (per 10,000 population)',    'Health', 'per 10,000'),
+    'WHOSIS_000015': ('Neonatal mortality rate',                       'Health', 'per 1000 live births'),
+    'SA_0000001688': ('Total alcohol per capita consumption',          'Health', 'litres'),
+    'NUTRITION_WH_2':('Prevalence of wasting in children under 5',     'Health', '%'),
+    'WHS6_102':      ('Births attended by skilled health personnel',   'Health', '%'),
+}
+
+def fetch_who():
+    print("\n[WHO GHO] Fetching health indicators...")
+    rows = []
+    for code, (name, cat, unit) in WHO_INDICATORS.items():
+        for iso3 in COUNTRIES:
+            # OData filter — try BTSX (both sexes) first, then unfiltered
+            filt_btsx = f"SpatialDim eq '{iso3}' and Dim1 eq 'BTSX'"
+            filt_plain = f"SpatialDim eq '{iso3}'"
+            got_data = False
+            for filt in [filt_btsx, filt_plain]:
+                if got_data:
+                    break
+                try:
+                    r = requests.get(
+                        f"https://ghoapi.azureedge.net/api/{code}",
+                        params={'$filter': filt, '$top': '500'},
+                        timeout=30)
+                    if r.status_code != 200:
+                        continue
+                    data = r.json()
+                    records = data.get('value', [])
+                    seen_years = set()
+                    for rec in records:
+                        val = rec.get('NumericValue')
+                        yr = rec.get('TimeDim')
+                        if val is None or yr is None:
+                            continue
+                        try:
+                            yr = int(yr)
+                        except (ValueError, TypeError):
+                            continue
+                        if yr < YEAR_START or yr > YEAR_END or yr in seen_years:
+                            continue
+                        seen_years.add(yr)
+                        rows.append({
+                            'source': 'WHO', 'iso3': iso3, 'year': yr,
+                            'indicator_code': f'WHO_{code}',
+                            'indicator_name': name, 'category': cat,
+                            'unit': unit, 'value': float(val),
+                        })
+                        got_data = True
+                except Exception as e:
+                    print(f"  [WHO] Error {code}/{iso3}: {e}")
+            time.sleep(0.15)
+        n = len([r for r in rows if r['indicator_code'] == f'WHO_{code}'])
+        print(f"  {code}: {n} obs")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'who_health.csv', index=False)
+    print(f"  [WHO] Saved {len(df)} rows -> data/raw/who_health.csv")
+    return df
+
+
+# ── ILO ILOSTAT (Labour Statistics) ──
+# Primary: ILO SDMX API (direct, reliable)
+# Fallback: World Bank proxy indicators
+ILO_SDMX_INDICATORS = {
+    # (dataflow, sex_filter, age_filter) → (name, category, unit)
+    'EAP_DWAP_SEX_AGE_RT': ('SEX_T', 'AGE_YTHADULT_YGE15', 'Labour force participation rate (%)', 'Social', '%'),
+    'UNE_DEAP_SEX_AGE_RT': ('SEX_T', 'AGE_YTHADULT_YGE15', 'Unemployment rate (%)',               'Social', '%'),
+    'EMP_DWAP_SEX_AGE_RT': ('SEX_T', 'AGE_YTHADULT_YGE15', 'Employment to population ratio (%)',   'Social', '%'),
+    'SDG_0852_SEX_AGE_RT': ('SEX_T', 'AGE_YTHADULT_Y15-24', 'Youth NEET rate (%)',                 'Social', '%'),
+}
+
+ILO_WB_INDICATORS = {
+    'SL.AGR.EMPL.ZS': ('Employment in agriculture (% of total)',      'Social',  '%'),
+    'SL.IND.EMPL.ZS': ('Employment in industry (% of total)',         'Social',  '%'),
+    'SL.SRV.EMPL.ZS': ('Employment in services (% of total)',         'Social',  '%'),
+    'SL.UEM.1524.ZS': ('Youth unemployment rate (% ages 15-24)',      'Social',  '%'),
+}
+
+def _wb_fetch_indicator(code, prefix, source, name, cat, unit, rows):
+    """Fetch a single WB indicator one country at a time (avoids bulk timeouts)."""
+    for iso in COUNTRIES:
+        url = (f'https://api.worldbank.org/v2/country/{iso}'
+               f'/indicator/{code}?format=json&per_page=500'
+               f'&date={YEAR_START}:{YEAR_END}')
+        for attempt in range(3):
+            try:
+                r = requests.get(url, timeout=30)
+                r.raise_for_status()
+                data = r.json()
+                if len(data) >= 2 and data[1]:
+                    for rec in data[1]:
+                        if rec['value'] is None:
+                            continue
+                        rows.append({
+                            'source': source, 'iso3': rec['countryiso3code'],
+                            'year': int(rec['date']),
+                            'indicator_code': f'{prefix}_{code}',
+                            'indicator_name': name, 'category': cat,
+                            'unit': unit, 'value': float(rec['value']),
+                        })
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(f"    [{prefix}] {code}/{iso} failed: {e}")
+                time.sleep(2 * (attempt + 1))
+        time.sleep(0.15)
+
+def _ilo_sdmx_fetch(df_code, sex, age, name, cat, unit, rows):
+    """Fetch one ILO indicator via SDMX CSV for all countries (wildcard + filter)."""
+    import io
+    for iso in COUNTRIES:
+        url = (f'https://sdmx.ilo.org/rest/data/ILO,DF_{df_code}'
+               f'/{iso}.A....?startPeriod={YEAR_START}'
+               f'&endPeriod={YEAR_END}&format=csv')
+        try:
+            r = requests.get(url, timeout=30)
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            df = pd.read_csv(io.StringIO(r.text))
+            # Filter for specific sex/age breakdown
+            df = df[(df['SEX'] == sex) & (df['AGE'] == age)]
+            for _, row in df.iterrows():
+                rows.append({
+                    'source': 'ILO', 'iso3': row['REF_AREA'],
+                    'year': int(row['TIME_PERIOD']),
+                    'indicator_code': f'ILO_{df_code}',
+                    'indicator_name': name, 'category': cat,
+                    'unit': unit, 'value': float(row['OBS_VALUE']),
+                })
+        except Exception as e:
+            print(f"    [ILO SDMX] {df_code}/{iso}: {e}")
+        time.sleep(0.2)
+
+def fetch_ilo():
+    print("\n[ILO] Fetching labour indicators...")
+    rows = []
+    # Primary: ILO SDMX API (direct)
+    for df_code, (sex, age, name, cat, unit) in ILO_SDMX_INDICATORS.items():
+        before = len(rows)
+        _ilo_sdmx_fetch(df_code, sex, age, name, cat, unit, rows)
+        print(f"  {df_code}: {len(rows) - before} obs (SDMX)")
+    # Fallback: World Bank proxy for sector employment
+    for code, (name, cat, unit) in ILO_WB_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'ILO', 'ILO', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs (WB)")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'ilo_labour.csv', index=False)
+    print(f"  [ILO] Saved {len(df)} rows -> data/raw/ilo_labour.csv")
+    return df
+
+
+# ── WTO (Services Trade) ──
+# Use World Bank proxy for services trade data (WTO API requires key)
+WTO_WB_INDICATORS = {
+    'BG.GSR.NFSV.GD.ZS': ('Trade in services (% of GDP)',              'Trade', '% of GDP'),
+    'BX.GSR.CCIS.ZS':    ('ICT service exports (% of service exports)','Trade', '%'),
+    'BX.GSR.TRVL.ZS':    ('Travel services (% of service exports)',    'Trade', '%'),
+    'BX.GSR.TRNS.ZS':    ('Transport services (% of service exports)', 'Trade', '%'),
+    'TM.TAX.MRCH.WM.AR.ZS':('Tariff rate, applied, weighted mean (%)', 'Trade', '%'),
+    'TM.TAX.MRCH.SM.AR.ZS':('Tariff rate, applied, simple mean (%)',   'Trade', '%'),
+}
+
+def fetch_wto():
+    print("\n[WTO] Fetching services trade via World Bank...")
+    rows = []
+    for code, (name, cat, unit) in WTO_WB_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'WTO', 'WTO', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'wto_services_trade.csv', index=False)
+    print(f"  [WTO] Saved {len(df)} rows -> data/raw/wto_services_trade.csv")
+    return df
+
+
+# ── UN Population (via World Bank proxy — UN Data Portal requires auth) ──
+UNPOP_WB_INDICATORS = {
+    'SP.POP.GROW':     ('Population growth (annual %)',                 'Demographic', '%'),
+    'SP.URB.TOTL.IN.ZS':('Urban population (% of total)',             'Demographic', '%'),
+    'SP.DYN.TFRT.IN':  ('Fertility rate (births per woman)',           'Demographic', 'births/woman'),
+    'SP.POP.65UP.TO.ZS':('Population ages 65+ (% of total)',          'Demographic', '%'),
+    'SP.POP.DPND.OL':  ('Age dependency ratio, old (% working-age)',  'Demographic', '%'),
+    'SP.POP.0014.TO.ZS':('Population ages 0-14 (% of total)',         'Demographic', '%'),
+    'SP.DYN.CDRT.IN':  ('Death rate (per 1000 people)',               'Demographic', 'per 1000'),
+    'SM.POP.NETM':     ('Net migration',                              'Demographic', 'count'),
+}
+
+def fetch_unpop():
+    print("\n[UN Population] Fetching demographic indicators via World Bank...")
+    rows = []
+    for code, (name, cat, unit) in UNPOP_WB_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'UNPOP', 'UN Population', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'unpop_demographic.csv', index=False)
+    print(f"  [UNPOP] Saved {len(df)} rows -> data/raw/unpop_demographic.csv")
+    return df
+
+
+# ── Supply Chain / Maritime (World Bank indicators) ──
+SCHAIN_WB_INDICATORS = {
+    'IS.SHP.GOOD.TU':   ('Container port traffic (TEU)',          'Trade', 'TEU'),
+    'IS.SHP.GCNW.XQ':   ('Liner shipping connectivity index',     'Trade', 'index'),
+    'LP.LPI.OVRL.XQ':   ('Logistics performance index (overall)', 'Trade', '1-5'),
+    'LP.LPI.CUST.XQ':   ('LPI: Customs efficiency',              'Trade', '1-5'),
+    'LP.LPI.INFR.XQ':   ('LPI: Infrastructure quality',          'Trade', '1-5'),
+    'LP.LPI.LOGS.XQ':   ('LPI: Logistics competence',            'Trade', '1-5'),
+    'LP.LPI.TIME.XQ':   ('LPI: Timeliness',                      'Trade', '1-5'),
+}
+
+def fetch_supply_chain():
+    print("\n[Supply Chain] Fetching maritime/logistics via World Bank...")
+    rows = []
+    for code, (name, cat, unit) in SCHAIN_WB_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'SCHAIN', 'Supply Chain', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'supply_chain_maritime.csv', index=False)
+    else:
+        pd.DataFrame(columns=['source','iso3','year','indicator_code','indicator_name',
+                               'category','unit','value']).to_csv(
+            RAW_DIR / 'supply_chain_maritime.csv', index=False)
+    print(f"  [Supply Chain] Saved {len(df)} rows -> data/raw/supply_chain_maritime.csv")
+    return df
+
+
+# ── UNCTAD Maritime (via DBnomics API) ──
+DBNOMICS_COUNTRIES = {
+    'USA': 'united-states-of-america', 'KEN': 'kenya', 'BRA': 'brazil',
+    'DEU': 'germany', 'CHN': 'china', 'RUS': 'russian-federation',
+    'SGP': 'singapore', 'IND': 'india', 'JPN': 'japan', 'IDN': 'indonesia',
+}
+
+UNCTAD_INDICATORS = {
+    # (dataset, series_template, name, unit)
+    'CPTA': ('A.teu-twenty-foot-equivalent-unit.{slug}',
+             'Container port throughput (TEU)', 'TEU'),
+}
+
+def fetch_unctad():
+    print("\n[UNCTAD] Fetching maritime data via DBnomics...")
+    rows = []
+    for ds_code, (series_tpl, name, unit) in UNCTAD_INDICATORS.items():
+        for iso3, slug in DBNOMICS_COUNTRIES.items():
+            series = series_tpl.format(slug=slug)
+            url = f'https://api.db.nomics.world/v22/series/UNCTAD/{ds_code}/{series}?observations=1'
+            try:
+                r = requests.get(url, timeout=30)
+                if r.status_code == 404:
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                slist = data.get('series', {}).get('docs', [])
+                if not slist:
+                    continue
+                s = slist[0]
+                periods = s.get('period', [])
+                values  = s.get('value', [])
+                for p, v in zip(periods, values):
+                    if v is None:
+                        continue
+                    try:
+                        yr = int(p[:4])
+                    except (ValueError, TypeError):
+                        continue
+                    if yr < YEAR_START or yr > YEAR_END:
+                        continue
+                    rows.append({
+                        'source': 'UNCTAD', 'iso3': iso3,
+                        'year': yr,
+                        'indicator_code': f'UNCTAD_{ds_code}',
+                        'indicator_name': name, 'category': 'Trade',
+                        'unit': unit, 'value': float(v),
+                    })
+            except Exception as e:
+                print(f"    [UNCTAD] {ds_code}/{iso3}: {e}")
+            time.sleep(0.2)
+        n = len([r for r in rows if r['indicator_code'] == f'UNCTAD_{ds_code}'])
+        print(f"  {ds_code}: {n} obs")
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_csv(RAW_DIR / 'unctad_maritime.csv', index=False)
+    else:
+        pd.DataFrame(columns=['source','iso3','year','indicator_code','indicator_name',
+                               'category','unit','value']).to_csv(
+            RAW_DIR / 'unctad_maritime.csv', index=False)
+    print(f"  [UNCTAD] Saved {len(df)} rows -> data/raw/unctad_maritime.csv")
+    return df
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -845,4 +1196,11 @@ if __name__ == '__main__':
     fetch_iea()
     fetch_faostat()
     fetch_fasttrack()
+    fetch_who()
+    fetch_ilo()
+    fetch_wto()
+    fetch_unpop()
+    fetch_supply_chain()
+    fetch_unctad()
+    fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")

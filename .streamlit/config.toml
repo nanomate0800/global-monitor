@@ -1,0 +1,17 @@
+[server]
+# Serve files in ./static/ at /app/static/<path> so the embedded HTML app can
+# fetch its JSON data via relative URLs.
+enableStaticServing = true
+# Streamlit Cloud controls the port/address; these are for local runs.
+headless = true
+
+[theme]
+# Match the app's dark aesthetic so there's no flash of light chrome.
+base = "dark"
+primaryColor = "#C8F060"
+backgroundColor = "#0D0F0C"
+secondaryBackgroundColor = "#14181A"
+textColor = "#CCCCCC"
+
+[browser]
+gatherUsageStats = false
