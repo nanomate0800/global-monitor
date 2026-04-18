@@ -96,6 +96,8 @@ def _infer_source(code):
     if code.startswith('UNPOP'):  return 'UN Population'
     if code.startswith('SCHAIN'): return 'Supply Chain'
     if code.startswith('UNCTAD'): return 'UNCTAD'
+    if code.startswith('DAMO'):   return 'Damodaran'
+    if code.startswith('WBES'):   return 'WBES'
     return 'WB'
 
 # Pull unique indicator→source map from db

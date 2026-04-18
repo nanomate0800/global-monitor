@@ -1184,6 +1184,165 @@ def fetch_unctad():
     return df
 
 
+# ── Damodaran (NYU Stern) — country risk premiums + listed-firm multiples ──
+# Static annual snapshot — Damodaran updates once a year in early January.
+# The data is country-level (no time series in the per-file snapshot), so we
+# tag all rows with HIST_END (the latest year in our build pipeline) so they
+# fall in the year windows the app actually renders.
+DAMODARAN_FILES = {
+    # local_filename : remote_url
+    'ctryprem.xlsx':    'https://pages.stern.nyu.edu/~adamodar/pc/datasets/ctryprem.xlsx',
+    'countrystats.xls': 'https://pages.stern.nyu.edu/~adamodar/pc/datasets/countrystats.xls',
+}
+
+# Map Damodaran country names -> our ISO3 codes (only countries we track)
+DAMODARAN_COUNTRY_MAP = {
+    'United States': 'USA', 'Singapore': 'SGP', 'Russia': 'RUS', 'Brazil': 'BRA',
+    'Germany': 'DEU', 'China': 'CHN', 'Japan': 'JPN', 'India': 'IND',
+    'Indonesia': 'IDN', 'Kenya': 'KEN',
+}
+
+def _download_damodaran(local_dir):
+    """Ensure both Damodaran files exist locally; download if missing."""
+    local_dir.mkdir(parents=True, exist_ok=True)
+    for fname, url in DAMODARAN_FILES.items():
+        path = local_dir / fname
+        if path.exists() and path.stat().st_size > 5_000:
+            continue
+        print(f"  Downloading {fname} from Damodaran...")
+        try:
+            r = requests.get(url, timeout=60)
+            r.raise_for_status()
+            path.write_bytes(r.content)
+        except Exception as e:
+            print(f"    [Damodaran] failed to download {fname}: {e}")
+
+def fetch_damodaran():
+    """Country risk premiums + listed-firm multiples from Aswath Damodaran's NYU Stern data page."""
+    print("\n[Damodaran] Fetching country risk + multiples (NYU Stern)...")
+    raw = RAW_DIR / 'damodaran'
+    _download_damodaran(raw)
+    rows = []
+    snapshot_year = 2025  # tag with HIST_END so it lands in current year windows
+
+    # ── 1) Country risk premiums (ctryprem.xlsx, sheet 'ERPs by country') ──
+    erp_path = raw / 'ctryprem.xlsx'
+    if erp_path.exists():
+        try:
+            df = pd.read_excel(erp_path, sheet_name='ERPs by country', skiprows=7)
+            # Columns are unnamed; positionally:
+            # 0=Country 1=Region 2=MoodyRating 3=DefaultSpread 4=TotalERP 5=CountryRP
+            df.columns = list(df.columns)  # keep originals
+            cols = list(df.columns)
+            for name, iso in DAMODARAN_COUNTRY_MAP.items():
+                m = df[df[cols[0]].astype(str).str.strip() == name]
+                if m.empty:
+                    continue
+                r = m.iloc[0]
+                # Pull each metric (skip NaN)
+                metrics = [
+                    ('DAMO_CRP',    'Country Risk Premium (Damodaran)',     'Economy', '%',  cols[5]),
+                    ('DAMO_TERP',   'Total Equity Risk Premium (Damodaran)','Economy', '%',  cols[4]),
+                    ('DAMO_DEFSPR', 'Sovereign Default Spread (Damodaran)', 'Economy', '%',  cols[3]),
+                ]
+                for code, label, cat, unit, src_col in metrics:
+                    v = r[src_col]
+                    try:
+                        v = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if pd.isna(v):
+                        continue
+                    rows.append({
+                        'source': 'Damodaran', 'iso3': iso, 'year': snapshot_year,
+                        'indicator_code': code, 'indicator_name': label,
+                        'category': cat, 'unit': unit, 'value': v * 100.0,  # convert decimal -> %
+                    })
+            print(f"  ctryprem.xlsx: extracted {sum(1 for r in rows if r['indicator_code'].startswith('DAMO_'))} obs")
+        except Exception as e:
+            print(f"    [Damodaran] failed to parse ctryprem.xlsx: {e}")
+
+    # ── 2) Country firm multiples (countrystats.xls) ──
+    stats_path = raw / 'countrystats.xls'
+    if stats_path.exists():
+        try:
+            df = pd.read_excel(stats_path, skiprows=8)
+            # Confirmed columns: 'Country', 'count', ..., 'median(Trailing PE)',
+            # 'median(PBV)', 'median(PS)', 'median(EV/EBITDA)', 'Dividend Yield'
+            metric_map = {
+                'count':                       ('DAMO_NLISTED',  'Number of listed firms (Damodaran)',     'firms'),
+                'median(Trailing PE)':         ('DAMO_PE_TR',    'Median Trailing P/E (Damodaran)',        'ratio'),
+                'median(PBV)':                 ('DAMO_PBV',      'Median Price/Book (Damodaran)',          'ratio'),
+                'median(PS)':                  ('DAMO_PS',       'Median Price/Sales (Damodaran)',         'ratio'),
+                'median(EV/EBITDA)':           ('DAMO_EV_EBITDA','Median EV/EBITDA (Damodaran)',           'ratio'),
+                'Dividend Yield':              ('DAMO_DIVYLD',   'Median Dividend Yield (Damodaran)',      '%'),
+            }
+            country_col = df.columns[0]  # 'Country'
+            extracted = 0
+            for name, iso in DAMODARAN_COUNTRY_MAP.items():
+                m = df[df[country_col].astype(str).str.strip() == name]
+                if m.empty:
+                    continue
+                r = m.iloc[0]
+                for src_col, (code, label, unit) in metric_map.items():
+                    if src_col not in df.columns:
+                        continue
+                    v = r[src_col]
+                    try:
+                        v = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if pd.isna(v):
+                        continue
+                    # Dividend yield is a decimal in Damodaran; convert to %
+                    if code == 'DAMO_DIVYLD':
+                        v = v * 100.0
+                    rows.append({
+                        'source': 'Damodaran', 'iso3': iso, 'year': snapshot_year,
+                        'indicator_code': code, 'indicator_name': label,
+                        'category': 'Economy', 'unit': unit, 'value': v,
+                    })
+                    extracted += 1
+            print(f"  countrystats.xls: extracted {extracted} obs")
+        except Exception as e:
+            print(f"    [Damodaran] failed to parse countrystats.xls: {e}")
+
+    df_out = pd.DataFrame(rows)
+    if df_out.empty:
+        df_out = pd.DataFrame(columns=['source','iso3','year','indicator_code',
+                                        'indicator_name','category','unit','value'])
+    df_out.to_csv(RAW_DIR / 'damodaran_capital_markets.csv', index=False)
+    print(f"  [Damodaran] Saved {len(df_out)} rows -> data/raw/damodaran_capital_markets.csv")
+    return df_out
+
+
+# ── World Bank Enterprise Surveys (WBES) — competitive threats / business environment ──
+# Periodic firm-level surveys per country. We pull 4 indicators that map to
+# competitive-threat dimensions: informal sector competition, regulatory burden,
+# corruption pressure, workforce capability investment.
+WBES_INDICATORS = {
+    'IC.FRM.CMPU.ZS':  ('Firms competing against unregistered firms (%)',     'Economy', '%'),
+    'IC.GOV.DURS.ZS':  ('Senior management time spent on regulations (%)',    'Economy', '%'),
+    'IC.FRM.CORR.ZS':  ('Firms identifying corruption as major constraint (%)','Economy','%'),
+    'IC.FRM.TRNG.ZS':  ('Firms offering formal training (%)',                  'Economy', '%'),
+}
+
+def fetch_wbes():
+    print("\n[WBES] Fetching World Bank Enterprise Survey indicators...")
+    rows = []
+    for code, (name, cat, unit) in WBES_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'WBES', 'WBES', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows)
+    if df.empty:
+        df = pd.DataFrame(columns=['source','iso3','year','indicator_code',
+                                    'indicator_name','category','unit','value'])
+    df.to_csv(RAW_DIR / 'wbes_business_environment.csv', index=False)
+    print(f"  [WBES] Saved {len(df)} rows -> data/raw/wbes_business_environment.csv")
+    return df
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -1202,5 +1361,7 @@ if __name__ == '__main__':
     fetch_unpop()
     fetch_supply_chain()
     fetch_unctad()
+    fetch_damodaran()
+    fetch_wbes()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")
