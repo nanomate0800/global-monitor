@@ -4,7 +4,7 @@ Fetches raw data from World Bank, IMF WEO, UNDP, NASA POWER, UN Comtrade, IEA (v
 Outputs raw CSVs to data/raw/.
 Run: python etl/extract.py
 """
-import requests, json, time, os, sys
+import requests, json, time, os, sys, re
 import pandas as pd
 from pathlib import Path
 
@@ -1185,132 +1185,290 @@ def fetch_unctad():
 
 
 # ── Damodaran (NYU Stern) — country risk premiums + listed-firm multiples ──
-# Static annual snapshot — Damodaran updates once a year in early January.
-# The data is country-level (no time series in the per-file snapshot), so we
-# tag all rows with HIST_END (the latest year in our build pipeline) so they
-# fall in the year windows the app actually renders.
-DAMODARAN_FILES = {
-    # local_filename : remote_url
+# Damodaran updates these files once a year in early January. We fetch the
+# CURRENT file (latest update, tagged as 2025) PLUS the archived files going
+# back as far as the schema is consistent:
+#   • Country Risk Premium (ctryprem<YY>.xls): 2015-2025 — schema stabilized
+#     from 2015. Pre-2015 files use a different sheet/layout and would need
+#     fragile year-specific code.
+#   • Country Multiples (countrystats<YY>.xls): 2013-2025 — same XLS template
+#     across the period, but column names drifted ("Average of Current PE"
+#     → "Median Current PE" → "median(Current PE)"). We use fuzzy column
+#     matching to absorb this.
+DAMODARAN_CURRENT = {
+    # local_filename : remote_url (current/latest snapshot)
     'ctryprem.xlsx':    'https://pages.stern.nyu.edu/~adamodar/pc/datasets/ctryprem.xlsx',
     'countrystats.xls': 'https://pages.stern.nyu.edu/~adamodar/pc/datasets/countrystats.xls',
 }
+DAMODARAN_ARCHIVE_BASE = 'https://pages.stern.nyu.edu/~adamodar/pc/archives'
+# Archive year ranges: the YY in the filename is the year the file was
+# *published* (e.g. ctryprem20.xls was published Jan 2020 and reflects EOY 2019
+# data, which we tag as year 2019).
+# - ERP: schema stabilised in 2015 → use publish years 2015..2024 + current
+#   (2026 publish → tag 2025) = 11 years (tags 2014..2025 with one gap).
+# - Multiples: pre-2020 publication used "Average of Current PE" instead of
+#   "Median of Current PE" — these are NOT comparable measures and create
+#   artificial regime shifts in the time series. We restrict to publish years
+#   2020..2024 + current (median-only) = 6 years (tags 2019..2024 + 2025).
+DAMODARAN_ERP_YEARS       = list(range(15, 25))   # publish 2015..2024
+DAMODARAN_MULTIPLES_YEARS = list(range(20, 25))   # publish 2020..2024 (median era only)
 
-# Map Damodaran country names -> our ISO3 codes (only countries we track)
+# Map Damodaran country names -> our ISO3 codes
 DAMODARAN_COUNTRY_MAP = {
     'United States': 'USA', 'Singapore': 'SGP', 'Russia': 'RUS', 'Brazil': 'BRA',
     'Germany': 'DEU', 'China': 'CHN', 'Japan': 'JPN', 'India': 'IND',
     'Indonesia': 'IDN', 'Kenya': 'KEN',
 }
 
-def _download_damodaran(local_dir):
-    """Ensure both Damodaran files exist locally; download if missing."""
-    local_dir.mkdir(parents=True, exist_ok=True)
-    for fname, url in DAMODARAN_FILES.items():
-        path = local_dir / fname
-        if path.exists() and path.stat().st_size > 5_000:
-            continue
-        print(f"  Downloading {fname} from Damodaran...")
+def _download_damodaran_file(local_path, *urls):
+    """Try each URL in order until one succeeds. Skip if local file already exists.
+
+    Some Damodaran archive files only exist as .xlsx (e.g. ctryprem23) so the
+    caller can pass alternative URLs as fallbacks.
+    """
+    if local_path.exists() and local_path.stat().st_size > 5_000:
+        return True
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    for url in urls:
         try:
             r = requests.get(url, timeout=60)
-            r.raise_for_status()
-            path.write_bytes(r.content)
+            if r.status_code != 200 or len(r.content) < 5_000:
+                continue
+            local_path.write_bytes(r.content)
+            return True
         except Exception as e:
-            print(f"    [Damodaran] failed to download {fname}: {e}")
+            print(f"    [Damodaran] download error for {url}: {e}")
+    print(f"    [Damodaran] could not download {local_path.name} from any URL")
+    return False
+
+def _find_header_row(df_raw, marker_cells, max_rows=15):
+    """Find first row whose cells *exactly* match (case-insensitive, stripped)
+    every entry in `marker_cells`. Uses cell equality rather than substring
+    search so 'count' won't spuriously match a title cell containing
+    'Country Statistics'. Each marker may also be a tuple of synonyms.
+    """
+    def _matches(cell_values, needle):
+        if isinstance(needle, (list, tuple)):
+            return any(_matches(cell_values, n) for n in needle)
+        return needle.lower() in cell_values
+    for i in range(min(max_rows, len(df_raw))):
+        cells = {str(x).strip().lower() for x in df_raw.iloc[i].tolist()}
+        if all(_matches(cells, n) for n in marker_cells):
+            return i
+    return None
+
+def _match_col(df, *substrings, exclude=()):
+    """Return first column whose lowercased name contains ALL substrings.
+    `exclude` is a list of columns to skip (e.g. the 'Country' column when
+    searching for 'count' would otherwise match 'country' as a substring).
+    """
+    needles = [s.lower() for s in substrings]
+    for c in df.columns:
+        if c in exclude:
+            continue
+        cl = str(c).lower()
+        if all(n in cl for n in needles):
+            return c
+    return None
+
+def _extract_erp_file(path, publish_year):
+    """Parse a Damodaran ctryprem<YY>.xls(x) file → list of fact rows.
+
+    publish_year is the calendar year the file was *published* (e.g. 2020 for
+    ctryprem20.xls). We tag the rows with publish_year - 1 to align with the
+    "data as of EOY prior" semantic Damodaran uses.
+    """
+    out = []
+    try:
+        xl = pd.ExcelFile(path)
+    except Exception as e:
+        print(f"    [Damodaran-ERP] cannot open {path.name}: {e}")
+        return out
+    # Sheet name standardised on "ERPs by country" from 2015 onwards
+    sheet = next((s for s in xl.sheet_names if s.lower() == 'erps by country'), None)
+    if sheet is None:
+        print(f"    [Damodaran-ERP] no 'ERPs by country' sheet in {path.name}; skipping")
+        return out
+    raw = pd.read_excel(xl, sheet_name=sheet, header=None)
+    # Header row's first cell is exactly "Country" (not "Country and Equity
+    # Risk Premiums" which is the title) AND contains a "Moody's rating" cell.
+    hdr_row = _find_header_row(raw, ['country', ("moody's rating", "moodys rating")])
+    if hdr_row is None:
+        print(f"    [Damodaran-ERP] header row not found in {path.name}")
+        return out
+    df = pd.read_excel(xl, sheet_name=sheet, header=hdr_row)
+    country_col = df.columns[0]
+    crp_col   = _match_col(df, 'country risk premium')
+    terp_col  = _match_col(df, 'total equity risk premium')
+    defsp_col = _match_col(df, 'rating-based default spread') or _match_col(df, 'default spread')
+    if not crp_col or not terp_col:
+        print(f"    [Damodaran-ERP] required columns missing in {path.name}")
+        return out
+    year_tag = publish_year - 1  # data reflects end-of-prior-year
+    for name, iso in DAMODARAN_COUNTRY_MAP.items():
+        m = df[df[country_col].astype(str).str.strip() == name]
+        if m.empty:
+            continue
+        r = m.iloc[0]
+        for code, label, src_col in [
+            ('DAMO_CRP',    'Country Risk Premium (Damodaran)',     crp_col),
+            ('DAMO_TERP',   'Total Equity Risk Premium (Damodaran)',terp_col),
+            ('DAMO_DEFSPR', 'Sovereign Default Spread (Damodaran)', defsp_col),
+        ]:
+            if not src_col:
+                continue
+            v = r[src_col]
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                continue
+            if pd.isna(v):
+                continue
+            out.append({
+                'source': 'Damodaran', 'iso3': iso, 'year': year_tag,
+                'indicator_code': code, 'indicator_name': label,
+                'category': 'Economy', 'unit': '%', 'value': v * 100.0,
+            })
+    return out
+
+def _extract_multiples_file(path, publish_year):
+    """Parse a Damodaran countrystats<YY>.xls file → list of fact rows.
+
+    Column names drift across years; matches by fuzzy substring instead of
+    exact text.
+    """
+    out = []
+    try:
+        raw = pd.read_excel(path, header=None)
+    except Exception as e:
+        print(f"    [Damodaran-multiples] cannot open {path.name}: {e}")
+        return out
+    # Header row's first cell is exactly "Country" plus either "Number of
+    # firms" (older files) or "count" (newer files). Exact-cell matching
+    # avoids the title row "Country Statistics on Market Multiples..."
+    # spuriously matching the "country" + "count" substrings.
+    hdr_row = _find_header_row(raw, ['country', ('number of firms', 'count')])
+    if hdr_row is None:
+        print(f"    [Damodaran-multiples] header row not found in {path.name}")
+        return out
+    df = pd.read_excel(path, header=hdr_row)
+    country_col = df.columns[0]
+    # Map our indicators to the columns in this year's file (fuzzy match)
+    metric_finders = [
+        # (code, label, unit, [list of needle-groups; first matching group wins])
+        # Newer Damodaran files (2024+) renamed 'Number of firms' -> 'count'.
+        ('DAMO_NLISTED',  'Number of listed firms (Damodaran)',  'firms',  [['number of firms'], ['count']]),
+        ('DAMO_PE_TR',    'Median Trailing P/E (Damodaran)',     'ratio',  [['trailing pe']]),
+        ('DAMO_PBV',      'Median Price/Book (Damodaran)',       'ratio',  [['pbv']]),
+        ('DAMO_PS',       'Median Price/Sales (Damodaran)',      'ratio',  [['ps']]),  # disambiguated by _ps_col below
+        ('DAMO_EV_EBITDA','Median EV/EBITDA (Damodaran)',        'ratio',  [['ev/ebitda']]),
+        ('DAMO_DIVYLD',   'Median Dividend Yield (Damodaran)',   '%',      [['dividend', 'yield']]),
+    ]
+    # For "PS" specifically we need to disambiguate from PEG, PBV — use exact substring after a paren or boundary
+    def _ps_col(df):
+        for c in df.columns:
+            cl = str(c).lower()
+            # match "ps)" / "(ps" / " ps " / "of ps" — i.e. PS as a standalone token
+            if re.search(r'(?:^|[\s\(\)/])ps(?:[\s\(\)/]|$)', cl):
+                return c
+        return None
+    year_tag = publish_year - 1
+    for name, iso in DAMODARAN_COUNTRY_MAP.items():
+        m = df[df[country_col].astype(str).str.strip() == name]
+        if m.empty:
+            continue
+        r = m.iloc[0]
+        for code, label, unit, needle_groups in metric_finders:
+            if code == 'DAMO_PS':
+                src_col = _ps_col(df)
+            else:
+                src_col = None
+                for needles in needle_groups:
+                    # Skip the country column so 'count' doesn't accidentally
+                    # match 'country'.
+                    src_col = _match_col(df, *needles, exclude=(country_col,))
+                    if src_col:
+                        break
+            if not src_col:
+                continue
+            v = r[src_col]
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                continue
+            if pd.isna(v):
+                continue
+            if code == 'DAMO_DIVYLD':
+                v = v * 100.0
+            out.append({
+                'source': 'Damodaran', 'iso3': iso, 'year': year_tag,
+                'indicator_code': code, 'indicator_name': label,
+                'category': 'Economy', 'unit': unit, 'value': v,
+            })
+    return out
 
 def fetch_damodaran():
-    """Country risk premiums + listed-firm multiples from Aswath Damodaran's NYU Stern data page."""
-    print("\n[Damodaran] Fetching country risk + multiples (NYU Stern)...")
-    raw = RAW_DIR / 'damodaran'
-    _download_damodaran(raw)
+    """Country risk premiums + listed-firm multiples (current + historical archives)."""
+    print("\n[Damodaran] Fetching country risk + multiples (NYU Stern, current + archives)...")
+    raw_dir = RAW_DIR / 'damodaran'
+    arch_dir = raw_dir / 'archive'
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    arch_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1) Download current files (publish year 2026 → tag 2025)
+    for fname, url in DAMODARAN_CURRENT.items():
+        _download_damodaran_file(raw_dir / fname, url)
+
+    # 2) Download archive files. For each year try .xlsx first then .xls
+    #    (some years only have one or the other, e.g. ctryprem23 is .xlsx-only).
+    print(f"  Downloading up to {len(DAMODARAN_ERP_YEARS)} ERP archive files...")
+    for yy in DAMODARAN_ERP_YEARS:
+        # Save as .xls regardless of source format (pandas reads either)
+        local = arch_dir / f'ctryprem{yy:02d}.xls'
+        _download_damodaran_file(
+            local,
+            f'{DAMODARAN_ARCHIVE_BASE}/ctryprem{yy:02d}.xls',
+            f'{DAMODARAN_ARCHIVE_BASE}/ctryprem{yy:02d}.xlsx',
+        )
+    print(f"  Downloading up to {len(DAMODARAN_MULTIPLES_YEARS)} multiples archive files...")
+    for yy in DAMODARAN_MULTIPLES_YEARS:
+        local = arch_dir / f'countrystats{yy:02d}.xls'
+        _download_damodaran_file(
+            local,
+            f'{DAMODARAN_ARCHIVE_BASE}/countrystats{yy:02d}.xls',
+            f'{DAMODARAN_ARCHIVE_BASE}/countrystats{yy:02d}.xlsx',
+        )
+
+    # 3) Parse all files into rows
     rows = []
-    snapshot_year = 2025  # tag with HIST_END so it lands in current year windows
+    # Current ERP file (published 2026 → tagged year 2025)
+    p = raw_dir / 'ctryprem.xlsx'
+    if p.exists():
+        rows.extend(_extract_erp_file(p, publish_year=2026))
+    for yy in DAMODARAN_ERP_YEARS:
+        p = arch_dir / f'ctryprem{yy:02d}.xls'
+        if p.exists():
+            rows.extend(_extract_erp_file(p, publish_year=2000 + yy))
+    erp_n = len(rows)
+    print(f"  ERP rows extracted: {erp_n}")
 
-    # ── 1) Country risk premiums (ctryprem.xlsx, sheet 'ERPs by country') ──
-    erp_path = raw / 'ctryprem.xlsx'
-    if erp_path.exists():
-        try:
-            df = pd.read_excel(erp_path, sheet_name='ERPs by country', skiprows=7)
-            # Columns are unnamed; positionally:
-            # 0=Country 1=Region 2=MoodyRating 3=DefaultSpread 4=TotalERP 5=CountryRP
-            df.columns = list(df.columns)  # keep originals
-            cols = list(df.columns)
-            for name, iso in DAMODARAN_COUNTRY_MAP.items():
-                m = df[df[cols[0]].astype(str).str.strip() == name]
-                if m.empty:
-                    continue
-                r = m.iloc[0]
-                # Pull each metric (skip NaN)
-                metrics = [
-                    ('DAMO_CRP',    'Country Risk Premium (Damodaran)',     'Economy', '%',  cols[5]),
-                    ('DAMO_TERP',   'Total Equity Risk Premium (Damodaran)','Economy', '%',  cols[4]),
-                    ('DAMO_DEFSPR', 'Sovereign Default Spread (Damodaran)', 'Economy', '%',  cols[3]),
-                ]
-                for code, label, cat, unit, src_col in metrics:
-                    v = r[src_col]
-                    try:
-                        v = float(v)
-                    except (TypeError, ValueError):
-                        continue
-                    if pd.isna(v):
-                        continue
-                    rows.append({
-                        'source': 'Damodaran', 'iso3': iso, 'year': snapshot_year,
-                        'indicator_code': code, 'indicator_name': label,
-                        'category': cat, 'unit': unit, 'value': v * 100.0,  # convert decimal -> %
-                    })
-            print(f"  ctryprem.xlsx: extracted {sum(1 for r in rows if r['indicator_code'].startswith('DAMO_'))} obs")
-        except Exception as e:
-            print(f"    [Damodaran] failed to parse ctryprem.xlsx: {e}")
-
-    # ── 2) Country firm multiples (countrystats.xls) ──
-    stats_path = raw / 'countrystats.xls'
-    if stats_path.exists():
-        try:
-            df = pd.read_excel(stats_path, skiprows=8)
-            # Confirmed columns: 'Country', 'count', ..., 'median(Trailing PE)',
-            # 'median(PBV)', 'median(PS)', 'median(EV/EBITDA)', 'Dividend Yield'
-            metric_map = {
-                'count':                       ('DAMO_NLISTED',  'Number of listed firms (Damodaran)',     'firms'),
-                'median(Trailing PE)':         ('DAMO_PE_TR',    'Median Trailing P/E (Damodaran)',        'ratio'),
-                'median(PBV)':                 ('DAMO_PBV',      'Median Price/Book (Damodaran)',          'ratio'),
-                'median(PS)':                  ('DAMO_PS',       'Median Price/Sales (Damodaran)',         'ratio'),
-                'median(EV/EBITDA)':           ('DAMO_EV_EBITDA','Median EV/EBITDA (Damodaran)',           'ratio'),
-                'Dividend Yield':              ('DAMO_DIVYLD',   'Median Dividend Yield (Damodaran)',      '%'),
-            }
-            country_col = df.columns[0]  # 'Country'
-            extracted = 0
-            for name, iso in DAMODARAN_COUNTRY_MAP.items():
-                m = df[df[country_col].astype(str).str.strip() == name]
-                if m.empty:
-                    continue
-                r = m.iloc[0]
-                for src_col, (code, label, unit) in metric_map.items():
-                    if src_col not in df.columns:
-                        continue
-                    v = r[src_col]
-                    try:
-                        v = float(v)
-                    except (TypeError, ValueError):
-                        continue
-                    if pd.isna(v):
-                        continue
-                    # Dividend yield is a decimal in Damodaran; convert to %
-                    if code == 'DAMO_DIVYLD':
-                        v = v * 100.0
-                    rows.append({
-                        'source': 'Damodaran', 'iso3': iso, 'year': snapshot_year,
-                        'indicator_code': code, 'indicator_name': label,
-                        'category': 'Economy', 'unit': unit, 'value': v,
-                    })
-                    extracted += 1
-            print(f"  countrystats.xls: extracted {extracted} obs")
-        except Exception as e:
-            print(f"    [Damodaran] failed to parse countrystats.xls: {e}")
+    # Current multiples file
+    p = raw_dir / 'countrystats.xls'
+    if p.exists():
+        rows.extend(_extract_multiples_file(p, publish_year=2026))
+    for yy in DAMODARAN_MULTIPLES_YEARS:
+        p = arch_dir / f'countrystats{yy:02d}.xls'
+        if p.exists():
+            rows.extend(_extract_multiples_file(p, publish_year=2000 + yy))
+    print(f"  Multiples rows extracted: {len(rows) - erp_n}")
 
     df_out = pd.DataFrame(rows)
     if df_out.empty:
         df_out = pd.DataFrame(columns=['source','iso3','year','indicator_code',
                                         'indicator_name','category','unit','value'])
+    # De-duplicate any (iso3, year, code) collisions (shouldn't happen but defensive)
+    if not df_out.empty:
+        df_out = df_out.drop_duplicates(subset=['iso3', 'year', 'indicator_code'])
     df_out.to_csv(RAW_DIR / 'damodaran_capital_markets.csv', index=False)
     print(f"  [Damodaran] Saved {len(df_out)} rows -> data/raw/damodaran_capital_markets.csv")
     return df_out
