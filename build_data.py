@@ -97,7 +97,7 @@ def _infer_source(code):
     if code.startswith('SCHAIN'): return 'Supply Chain'
     if code.startswith('UNCTAD'): return 'UNCTAD'
     if code.startswith('DAMO'):   return 'Damodaran'
-    if code.startswith('WBES'):   return 'WBES'
+    if code.startswith('HERITAGE'): return 'Heritage'
     return 'WB'
 
 # Pull unique indicator→source map from db
@@ -738,15 +738,20 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                 # Flag same-source + same-category pairs (except WB which is diverse)
                 # These often produce spurious correlations from shared development
                 # trends (e.g. WHO mortality vs WHO alcohol, ILO NEET vs ILO unemployment)
+                # ── Quality severity bitfield (q):
+                #   bit 0 (q & 1) = near-duplicate name stems    → hidden by Balanced+Strict
+                #   bit 1 (q & 2) = same-source same-category    → hidden by Strict only
+                # Final q ∈ {0,1,2,3}; 0 = clean.
                 src_a = IND_SOURCE.get(a, 'WB')
                 src_b = IND_SOURCE.get(b, 'WB')
-                _low_q = False
+                _q_bits = 0
+                # Same-source same-category (excludes WB which has too many cross-cat pairs)
                 if cat_a == cat_b and src_a == src_b and src_a not in ('WB',):
-                    _low_q = True
-                # Flag near-duplicate indicators (same metric from different sources)
+                    _q_bits |= 2  # bit 1
+                # Near-duplicate indicators (same metric, often cross-source)
                 al, bl = a.lower(), b.lower()
                 if _sim_indicator(al, bl):
-                    _low_q = True
+                    _q_bits |= 1  # bit 0
 
             common = sorted(set(residuals[a]) & set(residuals[b]))
             n = len(common)
@@ -799,8 +804,8 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                     'correlation': round(r, 3), 'strength': round(ar, 3),
                     'sign': 'pos' if r > 0 else 'neg',
                     'stability': stab}
-            if _low_q:
-                edge['q'] = 0  # low quality — flagged for runtime filtering
+            if _q_bits:
+                edge['q'] = _q_bits  # severity bitfield — see Quality block above
             edges.append(edge)
             eid += 1
     return edges
@@ -896,14 +901,15 @@ for iso_a, iso_b in combinations(COUNTRIES, 2):
             # Skip same-indicator (global cycles create spurious r) except Climate
             if ind_a == ind_b and cat_a != 'Climate': continue
             # Flag different indicators from the SAME source in the same category
-            # across countries — these share global development trends
+            # across countries — these share global development trends.
+            # See within-country block for q bitfield semantics (bit 0 = dup, bit 1 = ssc).
             src_a = IND_SOURCE.get(ind_a, 'WB')
             src_b = IND_SOURCE.get(ind_b, 'WB')
-            _xc_low_q = False
+            _xc_q = 0
             if ind_a != ind_b and src_a == src_b and src_a not in ('WB', 'NASA'):
-                _xc_low_q = True
+                _xc_q |= 2  # bit 1 — same-source same-category cross-country
             if _sim_indicator(ind_a.lower(), ind_b.lower()):
-                _xc_low_q = True
+                _xc_q |= 1  # bit 0 — near-duplicate name stem
             rb = _xc_resid.get((iso_b, ind_b))
             if rb is None: continue
             common = sorted(set(ra) & set(rb))
@@ -947,8 +953,8 @@ for iso_a, iso_b in combinations(COUNTRIES, 2):
                 'correlation': round(float(r), 3), 'strength': round(ar, 3),
                 'sign': 'pos' if r > 0 else 'neg', 'arc_type': arc
             }
-            if _xc_low_q:
-                xc_edge['q'] = 0
+            if _xc_q:
+                xc_edge['q'] = _xc_q  # severity bitfield (see within-country block)
             cross_edges.append(xc_edge)
             eid += 1
 

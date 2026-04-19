@@ -1474,30 +1474,164 @@ def fetch_damodaran():
     return df_out
 
 
-# ── World Bank Enterprise Surveys (WBES) — competitive threats / business environment ──
-# Periodic firm-level surveys per country. We pull 4 indicators that map to
-# competitive-threat dimensions: informal sector competition, regulatory burden,
-# corruption pressure, workforce capability investment.
-WBES_INDICATORS = {
-    'IC.FRM.CMPU.ZS':  ('Firms competing against unregistered firms (%)',     'Economy', '%'),
-    'IC.GOV.DURS.ZS':  ('Senior management time spent on regulations (%)',    'Economy', '%'),
-    'IC.FRM.CORR.ZS':  ('Firms identifying corruption as major constraint (%)','Economy','%'),
-    'IC.FRM.TRNG.ZS':  ('Firms offering formal training (%)',                  'Economy', '%'),
+# ── Heritage Foundation — Index of Economic Freedom (annual snapshots) ──
+# Annual scores 0-100 across 12 component dimensions. Replaces WBES (which had
+# only 1-3 survey points per country, mostly forming no correlations). Heritage
+# publishes one Index per year in early January reflecting prior-year data.
+#   • "2026 Index" file = data tagged as year 2025
+# Recent files use a clean header layout (data starts row 2). Older archived
+# files (e.g. 2022 from web.archive.org) use a different schema (column 6 is
+# the score, header at row 0, data from row 1) — handled by a fallback parser.
+HERITAGE_FILES = {
+    # local_filename : (remote_url, publish_year, parse_mode)
+    'ief_2026.xlsx': ('https://static.heritage.org/index/data/2026/2026_indexofeconomicfreedom_data.xlsx', 2026, 'modern'),
+    'ief_2025.xlsx': ('https://static.heritage.org/index/data/2025/2025_indexofeconomicfreedom_data.xlsx', 2025, 'modern'),
+    'ief_2024.xlsx': ('https://static.heritage.org/index/data/2024/2024_indexofeconomicfreedom_data.xlsx', 2024, 'modern'),
+    # Earlier years from Wayback Machine snapshots — these use the legacy XLS layout.
+    'ief_2022.xls':  ('https://web.archive.org/web/2024/https://www.heritage.org/index/excel/2022/index2022_data.xls', 2022, 'legacy'),
 }
 
-def fetch_wbes():
-    print("\n[WBES] Fetching World Bank Enterprise Survey indicators...")
+# Map Heritage country names -> our ISO3 codes
+HERITAGE_COUNTRY_MAP = {
+    'United States': 'USA', 'Singapore': 'SGP', 'Russia': 'RUS', 'Brazil': 'BRA',
+    'Germany': 'DEU', 'China': 'CHN', 'Japan': 'JPN', 'India': 'IND',
+    'Indonesia': 'IDN', 'Kenya': 'KEN',
+    # Russia appears as 'Russia' (modern) or 'Russian Federation' (sometimes legacy)
+    'Russian Federation': 'RUS',
+}
+
+# Logical indicator labels (column-name spelling drifts between files — typos
+# like 'Judical' vs 'Judicial', 'Monitary' vs 'Monetary' are normalised here).
+# Format: canonical_label -> list of source-column substrings that map to it.
+HERITAGE_INDICATORS = [
+    ('Heritage Overall Economic Freedom Score', ['Overall Score', '2022 Score', '2024 Score', '2025 Score', '2026 Score']),
+    ('Heritage Property Rights',                ['Property Rights']),
+    ('Heritage Judicial Effectiveness',         ['Judicial Effective', 'Judical Effective', 'Judicial Efective']),
+    ('Heritage Government Integrity',           ['Government Integrity']),
+    ('Heritage Tax Burden',                     ['Tax Burden']),
+    ('Heritage Government Spending',            ['Government Spending', "Gov't Spending"]),
+    ('Heritage Fiscal Health',                  ['Fiscal Health']),
+    ('Heritage Business Freedom',               ['Business Freedom']),
+    ('Heritage Labor Freedom',                  ['Labor Freedom', 'Labour Freedom']),
+    ('Heritage Monetary Freedom',               ['Monetary Freedom', 'Monitary Freedom']),
+    ('Heritage Trade Freedom',                  ['Trade Freedom']),
+    ('Heritage Investment Freedom',             ['Investment Freedom']),
+    ('Heritage Financial Freedom',              ['Financial Freedom']),
+]
+
+
+def _download_heritage(local_dir):
+    local_dir.mkdir(parents=True, exist_ok=True)
+    for fname, (url, _, _) in HERITAGE_FILES.items():
+        path = local_dir / fname
+        if path.exists() and path.stat().st_size > 5_000:
+            continue
+        print(f"  Downloading {fname}...")
+        try:
+            r = requests.get(url, timeout=60, allow_redirects=True)
+            r.raise_for_status()
+            # Wayback redirects sometimes return HTML — filter those out.
+            if r.content[:4] in (b'<!DO', b'<htm') or len(r.content) < 5_000:
+                print(f"    [Heritage] {fname} returned HTML/empty, skipping")
+                continue
+            path.write_bytes(r.content)
+        except Exception as e:
+            print(f"    [Heritage] failed to download {fname}: {e}")
+
+
+def _heritage_extract_modern(path, publish_year):
+    """Recent files: header row at index 1, country in col 0, scores from col 2 on."""
+    df = pd.read_excel(path, header=1)
+    # Heritage's "publish year N" reflects EOY (N-1) data
+    data_year = publish_year - 1
     rows = []
-    for code, (name, cat, unit) in WBES_INDICATORS.items():
-        before = len(rows)
-        _wb_fetch_indicator(code, 'WBES', 'WBES', name, cat, unit, rows)
-        print(f"  {code}: {len(rows) - before} obs")
+    if 'Country' not in df.columns:
+        return rows
+    for hname, iso in HERITAGE_COUNTRY_MAP.items():
+        m = df[df['Country'].astype(str).str.strip() == hname]
+        if m.empty:
+            continue
+        r = m.iloc[0]
+        for canon, src_substrings in HERITAGE_INDICATORS:
+            # Find first column whose name contains any substring
+            col = next((c for c in df.columns
+                        if any(s.lower() in str(c).lower() for s in src_substrings)), None)
+            if col is None:
+                continue
+            try:
+                v = float(r[col])
+            except (TypeError, ValueError):
+                continue
+            if pd.isna(v):
+                continue
+            rows.append({
+                'source': 'Heritage', 'iso3': iso, 'year': data_year,
+                'indicator_code': 'HERITAGE_' + canon.replace(' ', '_').upper()[:50],
+                'indicator_name': canon, 'category': 'Economy',
+                'unit': 'score (0-100)', 'value': v,
+            })
+    return rows
+
+
+def _heritage_extract_legacy(path, publish_year):
+    """Legacy XLS: header at row 0, country in col 1, scores from col 6 on."""
+    df = pd.read_excel(path, header=0)
+    data_year = publish_year - 1
+    rows = []
+    country_col = df.columns[1] if len(df.columns) > 1 else None
+    if country_col is None:
+        return rows
+    for hname, iso in HERITAGE_COUNTRY_MAP.items():
+        m = df[df[country_col].astype(str).str.strip() == hname]
+        if m.empty:
+            continue
+        r = m.iloc[0]
+        for canon, src_substrings in HERITAGE_INDICATORS:
+            col = next((c for c in df.columns
+                        if any(s.lower() in str(c).lower() for s in src_substrings)), None)
+            if col is None:
+                continue
+            try:
+                v = float(r[col])
+            except (TypeError, ValueError):
+                continue
+            if pd.isna(v):
+                continue
+            rows.append({
+                'source': 'Heritage', 'iso3': iso, 'year': data_year,
+                'indicator_code': 'HERITAGE_' + canon.replace(' ', '_').upper()[:50],
+                'indicator_name': canon, 'category': 'Economy',
+                'unit': 'score (0-100)', 'value': v,
+            })
+    return rows
+
+
+def fetch_heritage():
+    """Heritage Foundation Index of Economic Freedom — annual scores, 13 dimensions."""
+    print("\n[Heritage] Fetching Index of Economic Freedom...")
+    raw = RAW_DIR / 'heritage'
+    _download_heritage(raw)
+    rows = []
+    for fname, (_, publish_year, mode) in HERITAGE_FILES.items():
+        path = raw / fname
+        if not path.exists() or path.stat().st_size < 5_000:
+            continue
+        try:
+            if mode == 'modern':
+                file_rows = _heritage_extract_modern(path, publish_year)
+            else:
+                file_rows = _heritage_extract_legacy(path, publish_year)
+            rows.extend(file_rows)
+            print(f"  {fname} (data year {publish_year - 1}): {len(file_rows)} obs")
+        except Exception as e:
+            print(f"    [Heritage] failed to parse {fname}: {e}")
+
     df = pd.DataFrame(rows)
     if df.empty:
         df = pd.DataFrame(columns=['source','iso3','year','indicator_code',
                                     'indicator_name','category','unit','value'])
-    df.to_csv(RAW_DIR / 'wbes_business_environment.csv', index=False)
-    print(f"  [WBES] Saved {len(df)} rows -> data/raw/wbes_business_environment.csv")
+    df.to_csv(RAW_DIR / 'heritage_economic_freedom.csv', index=False)
+    print(f"  [Heritage] Saved {len(df)} rows -> data/raw/heritage_economic_freedom.csv")
     return df
 
 
@@ -1520,6 +1654,6 @@ if __name__ == '__main__':
     fetch_supply_chain()
     fetch_unctad()
     fetch_damodaran()
-    fetch_wbes()
+    fetch_heritage()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")

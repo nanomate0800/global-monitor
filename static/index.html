@@ -174,11 +174,27 @@ tr.hi td{color:var(--tx);}
 .sign-btn.on.neg{color:#7898d0;border-color:#7898d0;background:rgba(120,152,208,.06);}
 .sign-btn.on.both{color:var(--mu2);border-color:var(--mu2);}
 /* ── DATA SOURCE SELECTOR ── */
-.src-row{display:flex;align-items:center;gap:6px;padding:4px 10px;cursor:pointer;font-size:8px;color:var(--mu2);transition:background .1s;}
+.src-row{display:flex;align-items:center;gap:6px;padding:3px 10px 3px 24px;cursor:pointer;font-size:8px;color:var(--mu2);transition:background .1s,opacity .12s;}
 .src-row:hover{background:var(--s2);}
+.src-row.dim{opacity:0.25;cursor:not-allowed;}
+.src-row.hide{display:none;}
 .src-chk{width:11px;height:11px;border:1px solid var(--b3);border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;color:#000;transition:all .1s;}
 .src-chk.on{background:var(--ph);border-color:var(--ph);}
+.src-chk.on::before{content:'\2713';color:#000;}
 .src-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+/* ── 3-LEVEL SOURCE HIERARCHY: Domain headers + collapsible bodies ── */
+.src-domain{margin-bottom:1px;}
+.src-dom-hdr{display:flex;align-items:center;gap:5px;padding:4px 10px;cursor:pointer;font-size:7.5px;color:var(--mu);letter-spacing:.07em;text-transform:uppercase;user-select:none;transition:color .12s;}
+.src-dom-hdr:hover{color:var(--tx);}
+.src-dom-icon{font-size:7px;color:var(--mu);width:7px;flex-shrink:0;transition:transform .12s;display:inline-block;}
+.src-dom-icon.collapsed{transform:rotate(-90deg);}
+.src-dom-body{display:block;}
+.src-dom-body.collapsed{display:none;}
+/* ── DATA QUALITY 3-position pill row ── */
+.dq-row{display:flex;gap:3px;margin:3px 0 2px;}
+.dq-pill{flex:1;text-align:center;padding:3px 4px;font-size:7px;letter-spacing:.07em;border:1px solid var(--b2);color:var(--mu);cursor:pointer;border-radius:2px;transition:all .12s;}
+.dq-pill:hover{color:var(--tx);}
+.dq-pill.on{color:var(--ph);border-color:var(--ph);background:rgba(200,240,96,.05);}
 /* ── RESET BUTTON ── */
 .reset-btn{margin:6px 10px;padding:6px 8px;text-align:center;border:1px solid var(--b2);color:var(--mu2);cursor:pointer;font-size:8px;transition:all .12s;border-radius:2px;letter-spacing:.08em;}
 .reset-btn:hover{color:var(--tx);border-color:var(--mu2);}
@@ -453,34 +469,68 @@ tr.hi td{color:var(--tx);}
       <div class="reset-view-btn" onclick="resetView()" title="Reset threshold, stability, confidence filters, zoom and selection">RESET VIEW</div>
     </div>
     <div class="sec" style="padding:6px 10px;">
-      <div class="stl" style="margin-bottom:4px">Data Quality</div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:8px;color:var(--mu2);cursor:pointer;user-select:none">
-        <input type="checkbox" id="dq-filter" checked onchange="toggleQualityFilter()" style="accent-color:var(--ph);width:11px;height:11px;margin:0;cursor:pointer">
-        Remove nonsensical correlations
-      </label>
-      <div style="font-size:6.5px;color:var(--mu);margin-top:2px;padding-left:17px">Hides same-source co-trending &amp; near-duplicate pairs</div>
+      <div class="stl" style="margin-bottom:4px">Hide redundant correlations</div>
+      <div class="dq-row">
+        <div class="dq-pill" id="dq-off"      onclick="setQualityMode('off')">OFF</div>
+        <div class="dq-pill on" id="dq-balanced" onclick="setQualityMode('balanced')">BALANCED</div>
+        <div class="dq-pill" id="dq-strict"   onclick="setQualityMode('strict')">STRICT</div>
+      </div>
+      <div style="font-size:6.5px;color:var(--mu);margin-top:3px">Off: show all. Balanced: hide near-duplicate metrics. Strict: also hide same-source co-trending pairs.</div>
     </div>
     <div class="sec">
       <div class="stl" style="cursor:pointer;display:flex;justify-content:space-between" onclick="toggleSrcPanel()">
         Data Sources <span id="src-caret" style="font-size:8px">▾</span>
       </div>
       <div id="src-panel">
-        <div class="src-row" onclick="toggleSrc('WB')"><div class="src-chk on" id="sc-WB">✓</div><div class="src-dot" style="background:var(--b3)"></div>World Bank (Economic)</div>
-        <div class="src-row" onclick="toggleSrc('IMF')"><div class="src-chk on" id="sc-IMF">✓</div><div class="src-dot" style="background:var(--b3)"></div>IMF (Sovereign Debt)</div>
-        <div class="src-row" onclick="toggleSrc('UNDP')"><div class="src-chk on" id="sc-UNDP">✓</div><div class="src-dot" style="background:var(--b3)"></div>UNDP (HDI/Social)</div>
-        <div class="src-row" onclick="toggleSrc('NASA')"><div class="src-chk on" id="sc-NASA">✓</div><div class="src-dot" style="background:var(--b3)"></div>NASA (Climate / GISS)</div>
-        <div class="src-row" onclick="toggleSrc('Comtrade')"><div class="src-chk on" id="sc-Comtrade">✓</div><div class="src-dot" style="background:var(--b3)"></div>UN Comtrade (Trade)</div>
-        <div class="src-row" onclick="toggleSrc('IEA')"><div class="src-chk on" id="sc-IEA">✓</div><div class="src-dot" style="background:var(--b3)"></div>IEA (Energy)</div>
-        <div class="src-row" onclick="toggleSrc('FAOSTAT')"><div class="src-chk on" id="sc-FAOSTAT">✓</div><div class="src-dot" style="background:var(--b3)"></div>FAOSTAT (Agriculture)</div>
-        <div class="src-row" onclick="toggleSrc('FastTrack')"><div class="src-chk on" id="sc-FastTrack">✓</div><div class="src-dot" style="background:var(--b3)"></div>Gapminder (Governance)</div>
-        <div class="src-row" onclick="toggleSrc('WHO')"><div class="src-chk on" id="sc-WHO">✓</div><div class="src-dot" style="background:var(--b3)"></div>WHO (Health)</div>
-        <div class="src-row" onclick="toggleSrc('ILO')"><div class="src-chk on" id="sc-ILO">✓</div><div class="src-dot" style="background:var(--b3)"></div>ILO (Labour)</div>
-        <div class="src-row" onclick="toggleSrc('WTO')"><div class="src-chk on" id="sc-WTO">✓</div><div class="src-dot" style="background:var(--b3)"></div>WTO (Services Trade)</div>
-        <div class="src-row" onclick="toggleSrc('UN Population')"><div class="src-chk on" id="sc-UNPopulation">✓</div><div class="src-dot" style="background:var(--b3)"></div>UN Population (Demographics)</div>
-        <div class="src-row" onclick="toggleSrc('Supply Chain')"><div class="src-chk on" id="sc-SupplyChain">✓</div><div class="src-dot" style="background:var(--b3)"></div>Supply Chain (Maritime/Logistics)</div>
-        <div class="src-row" onclick="toggleSrc('UNCTAD')"><div class="src-chk on" id="sc-UNCTAD">✓</div><div class="src-dot" style="background:var(--b3)"></div>UNCTAD (Maritime Trade)</div>
-        <div class="src-row" onclick="toggleSrc('Damodaran')"><div class="src-chk on" id="sc-Damodaran">✓</div><div class="src-dot" style="background:var(--b3)"></div>Damodaran (Capital Markets)</div>
-        <div class="src-row" onclick="toggleSrc('WBES')"><div class="src-chk on" id="sc-WBES">✓</div><div class="src-dot" style="background:var(--b3)"></div>WB Enterprise Survey (Business Env)</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 10px 4px">
+          <div style="font-size:7px;color:var(--mu)" id="src-helper">Select 2 correlating datasets</div>
+          <div onclick="resetSrcPicker()" style="font-size:7px;color:var(--mu2);cursor:pointer;padding:1px 6px;border:1px solid var(--b2);border-radius:2px;letter-spacing:.05em">RESET</div>
+        </div>
+        <!-- Domain groups (3-level: Domain -> Source). Domains collapse via click. -->
+        <div class="src-domain">
+          <div class="src-dom-hdr" onclick="toggleSrcDomain('macro')">
+            <span class="src-dom-icon" id="sdi-macro">▾</span>Macroeconomic and Financial
+          </div>
+          <div class="src-dom-body" id="sdb-macro">
+            <div class="src-row" data-src="WB" onclick="toggleSrc('WB')"><div class="src-chk" id="sc-WB"></div>World Bank (Economic)</div>
+            <div class="src-row" data-src="IMF" onclick="toggleSrc('IMF')"><div class="src-chk" id="sc-IMF"></div>IMF (Sovereign Debt)</div>
+            <div class="src-row" data-src="Damodaran" onclick="toggleSrc('Damodaran')"><div class="src-chk" id="sc-Damodaran"></div>Damodaran (Capital Markets)</div>
+            <div class="src-row" data-src="Heritage" onclick="toggleSrc('Heritage')"><div class="src-chk" id="sc-Heritage"></div>Heritage (Economic Freedom)</div>
+          </div>
+        </div>
+        <div class="src-domain">
+          <div class="src-dom-hdr" onclick="toggleSrcDomain('trade')">
+            <span class="src-dom-icon" id="sdi-trade">▾</span>Trade and Logistics
+          </div>
+          <div class="src-dom-body" id="sdb-trade">
+            <div class="src-row" data-src="Comtrade" onclick="toggleSrc('Comtrade')"><div class="src-chk" id="sc-Comtrade"></div>UN Comtrade (Trade)</div>
+            <div class="src-row" data-src="WTO" onclick="toggleSrc('WTO')"><div class="src-chk" id="sc-WTO"></div>WTO (Services Trade)</div>
+            <div class="src-row" data-src="Supply Chain" onclick="toggleSrc('Supply Chain')"><div class="src-chk" id="sc-SupplyChain"></div>Supply Chain (Maritime/Logistics)</div>
+            <div class="src-row" data-src="UNCTAD" onclick="toggleSrc('UNCTAD')"><div class="src-chk" id="sc-UNCTAD"></div>UNCTAD (Maritime Trade)</div>
+          </div>
+        </div>
+        <div class="src-domain">
+          <div class="src-dom-hdr" onclick="toggleSrcDomain('env')">
+            <span class="src-dom-icon" id="sdi-env">▾</span>Environment and Energy
+          </div>
+          <div class="src-dom-body" id="sdb-env">
+            <div class="src-row" data-src="NASA" onclick="toggleSrc('NASA')"><div class="src-chk" id="sc-NASA"></div>NASA (Climate / GISS)</div>
+            <div class="src-row" data-src="IEA" onclick="toggleSrc('IEA')"><div class="src-chk" id="sc-IEA"></div>IEA (Energy)</div>
+            <div class="src-row" data-src="FAOSTAT" onclick="toggleSrc('FAOSTAT')"><div class="src-chk" id="sc-FAOSTAT"></div>FAOSTAT (Agriculture)</div>
+          </div>
+        </div>
+        <div class="src-domain">
+          <div class="src-dom-hdr" onclick="toggleSrcDomain('social')">
+            <span class="src-dom-icon" id="sdi-social">▾</span>Social and Demographic
+          </div>
+          <div class="src-dom-body" id="sdb-social">
+            <div class="src-row" data-src="UNDP" onclick="toggleSrc('UNDP')"><div class="src-chk" id="sc-UNDP"></div>UNDP (HDI/Social)</div>
+            <div class="src-row" data-src="WHO" onclick="toggleSrc('WHO')"><div class="src-chk" id="sc-WHO"></div>WHO (Health)</div>
+            <div class="src-row" data-src="ILO" onclick="toggleSrc('ILO')"><div class="src-chk" id="sc-ILO"></div>ILO (Labour)</div>
+            <div class="src-row" data-src="UN Population" onclick="toggleSrc('UN Population')"><div class="src-chk" id="sc-UNPopulation"></div>UN Population (Demographics)</div>
+            <div class="src-row" data-src="FastTrack" onclick="toggleSrc('FastTrack')"><div class="src-chk" id="sc-FastTrack"></div>Gapminder (Governance)</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -888,11 +938,20 @@ const SUBCAT_RULES=[
   {m:'Median EV/EBITDA',sub:'Capital Markets'},
   {m:'Median Dividend Yield',sub:'Capital Markets'},
   {m:'Number of listed firms',sub:'Capital Markets'},
-  // WBES — Business Environment (under Other)
-  {m:'unregistered firms',sub:'Business Environment'},
-  {m:'time spent on regulations',sub:'Business Environment'},
-  {m:'corruption as major constraint',sub:'Business Environment'},
-  {m:'formal training',sub:'Business Environment'},
+  // Heritage — Economic Freedom (under Economy)
+  {m:'Heritage Overall',sub:'Economic Freedom'},
+  {m:'Heritage Property Rights',sub:'Economic Freedom'},
+  {m:'Heritage Judicial',sub:'Economic Freedom'},
+  {m:'Heritage Government Integrity',sub:'Economic Freedom'},
+  {m:'Heritage Tax Burden',sub:'Economic Freedom'},
+  {m:'Heritage Government Spending',sub:'Economic Freedom'},
+  {m:'Heritage Fiscal Health',sub:'Economic Freedom'},
+  {m:'Heritage Business Freedom',sub:'Economic Freedom'},
+  {m:'Heritage Labor Freedom',sub:'Economic Freedom'},
+  {m:'Heritage Monetary Freedom',sub:'Economic Freedom'},
+  {m:'Heritage Trade Freedom',sub:'Economic Freedom'},
+  {m:'Heritage Investment Freedom',sub:'Economic Freedom'},
+  {m:'Heritage Financial Freedom',sub:'Economic Freedom'},
 ];
 function _getSubcat(label){
   if(!label)return null;
@@ -903,8 +962,12 @@ function _getSubcat(label){
 const S={level:'global',countries:['USA'],mode:'explore',thr:0,thrMax:1,sign:'both',yS:2000,yE:2023,
   selNode:null,gNodes:[],
   meta:null,corr:{},fc:{},cross:[],globeStyle:'dark',partialR:false,_gf:null,showFlags:false,intlOnly:false,expandRel:false,
-  sources:new Set(['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','WBES']),
-  qualityFilter:true,
+  sources:new Set(['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage']),
+  qualityMode:'balanced',  // 'off' | 'balanced' | 'strict' — see _passThr
+  // Domain collapse state (3-level source hierarchy)
+  srcDomains:{macro:true, trade:true, env:true, social:true},  // true = expanded
+  // Source-pair edge count cache (for picker visibility logic)
+  _srcConn:null,
   stabMin:0,
   confEnabled:false,  // confidence tier filter is opt-in; OFF by default
   confSel:new Set(['definitive','strong','moderate','exploratory']),
@@ -1264,6 +1327,9 @@ async function loadData(prog){
   for(const iso3 of initLoad){
     await loadCorr(iso3,2000,2023);
   }
+  // Now that meta + correlations are loaded, sync checkboxes + compute initial picker visibility
+  if(typeof _syncSrcCheckboxes==='function')_syncSrcCheckboxes();
+  if(typeof _recomputeSrcVisibility==='function')_recomputeSrcVisibility();
   prog(100,'Ready');
 }
 async function loadCorr(iso3,y1,y2){
@@ -1348,12 +1414,19 @@ function setMode(m,btn){S.mode=m;document.querySelectorAll('.hmbtn').forEach(b=>
 // Edge passes threshold range: strength must be between S.thr (min) and S.thrMax (max)
 function _passThr(e){
   if(e.strength<S.thr||e.strength>S.thrMax)return false;
-  if(S.qualityFilter&&e.q===0)return false;
+  // Quality severity bitfield (e.q): bit0=near-dup, bit1=same-src-same-cat
+  // Modes:  off→show all,  balanced→hide bit0,  strict→hide any flag
+  if(S.qualityMode==='balanced' && (e.q&1))return false;
+  if(S.qualityMode==='strict'   && e.q)return false;
   return true;
 }
-function toggleQualityFilter(){
-  S.qualityFilter=$('dq-filter').checked;
-  buildNodeList();updateMeta();renderNet();
+function setQualityMode(mode){
+  S.qualityMode=mode;
+  ['off','balanced','strict'].forEach(m=>{
+    const el=$('dq-'+m); if(el) el.classList.toggle('on', m===mode);
+  });
+  S._srcConn=null;  // invalidate cache so picker visibility re-runs
+  buildNodeList();updateMeta();renderNet();_recomputeSrcVisibility();
 }
 function onThrMin(el){
   if(S.confEnabled)return; // locked when tiers are on
@@ -1401,7 +1474,7 @@ function getActiveCats(){
     'Supply Chain':  ['Trade'],
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
-    'WBES':          ['Economy'],
+    'Heritage':      ['Economy'],
   };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
@@ -1413,11 +1486,84 @@ function nodePassesSrc(n){
   return S.sources.has(n.source);
 }
 function toggleSrc(src){
+  // Block clicks on sources that have been hidden because they don't connect
+  // to anything currently selected (the picker dims them via .src-row.hide).
+  const row=document.querySelector(`.src-row[data-src="${src}"]`);
+  if(row && row.classList.contains('hide'))return;
   if(S.sources.has(src))S.sources.delete(src);else S.sources.add(src);
-  const elId='sc-'+src.replace(/\s+/g,'');const el=$(elId);if(el){el.classList.toggle('on',S.sources.has(src));el.textContent=S.sources.has(src)?'✓':'';}
+  const elId='sc-'+src.replace(/\s+/g,'');const el=$(elId);if(el)el.classList.toggle('on',S.sources.has(src));
+  S._srcConn=null;  // invalidate connection cache
   buildNodeList();updateMeta();renderNet();globeCountryMode();
+  _recomputeSrcVisibility();
   // Auto-refresh picker if open
   if($('pd-picker')?.style.display==='block')predPickerCountryChange();
+}
+// ── 3-LEVEL SOURCE HIERARCHY: collapse/expand domains ──
+function toggleSrcDomain(d){
+  S.srcDomains[d]=!S.srcDomains[d];
+  const body=$('sdb-'+d), icon=$('sdi-'+d);
+  if(body)body.classList.toggle('collapsed',!S.srcDomains[d]);
+  if(icon)icon.classList.toggle('collapsed',!S.srcDomains[d]);
+}
+// ── SOURCE PICKER: reset to all-on visible state ──
+function resetSrcPicker(){
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage'];
+  S.sources=new Set(all);
+  document.querySelectorAll('.src-row[data-src]').forEach(r=>r.classList.remove('hide','dim'));
+  _syncSrcCheckboxes();
+  S._srcConn=null;
+  buildNodeList();updateMeta();renderNet();globeCountryMode();
+  _recomputeSrcVisibility();
+}
+// ── SOURCE PICKER: sync checkbox 'on' classes to S.sources state ──
+function _syncSrcCheckboxes(){
+  document.querySelectorAll('.src-row[data-src]').forEach(row=>{
+    const src=row.getAttribute('data-src');
+    const chk=row.querySelector('.src-chk');
+    if(chk)chk.classList.toggle('on', S.sources.has(src));
+  });
+}
+// ── SOURCE PICKER: build a {srcA: {srcB: edgeCount}} map from currently loaded edges ──
+function _buildSrcConnMap(){
+  if(S._srcConn)return S._srcConn;
+  const map={};
+  const srcOf=(label)=>S.meta?.indicator_sources?.[label]||null;
+  const bump=(a,b)=>{if(!a||!b)return; map[a]=map[a]||{}; map[a][b]=(map[a][b]||0)+1; map[b]=map[b]||{}; map[b][a]=(map[b][a]||0)+1;};
+  // Within-country edges currently loaded
+  Object.values(S.corr||{}).forEach(arr=>{if(Array.isArray(arr))arr.forEach(e=>{
+    if(!_passThr(e))return;
+    const sa=srcOf((e.source||'').replace(/^[A-Z]{3}::/,''));
+    const sb=srcOf((e.target||'').replace(/^[A-Z]{3}::/,''));
+    bump(sa,sb);
+  });});
+  // Cross-country edges
+  (S.cross||[]).forEach(e=>{
+    if(!_passThr(e))return;
+    bump(srcOf(e.indicator_a), srcOf(e.indicator_b));
+  });
+  S._srcConn=map;
+  return map;
+}
+// ── SOURCE PICKER: hide rows that have no edges connecting to any selected source ──
+function _recomputeSrcVisibility(){
+  const map=_buildSrcConnMap();
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage'];
+  // If nothing selected, show everything
+  if(S.sources.size===0){
+    all.forEach(s=>{const r=document.querySelector(`.src-row[data-src="${s}"]`); if(r){r.classList.remove('hide','dim');}});
+    return;
+  }
+  all.forEach(s=>{
+    const r=document.querySelector(`.src-row[data-src="${s}"]`); if(!r)return;
+    if(S.sources.has(s)){
+      r.classList.remove('hide','dim'); return;
+    }
+    // Source not selected — does it connect to any selected source?
+    const conns=map[s]||{};
+    const hasConn=[...S.sources].some(sel=>conns[sel]>0);
+    r.classList.toggle('hide', !hasConn);
+    r.classList.remove('dim');
+  });
 }
 function passSign(e){
   if(S.sign==='both')return true;
@@ -1817,7 +1963,7 @@ function buildNodeList(){
     'Supply Chain':  ['Trade'],
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
-    'WBES':          ['Economy'],
+    'Heritage':      ['Economy'],
   };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
