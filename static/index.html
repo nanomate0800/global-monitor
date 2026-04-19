@@ -962,7 +962,10 @@ function _getSubcat(label){
 const S={level:'global',countries:['USA'],mode:'explore',thr:0,thrMax:1,sign:'both',yS:2000,yE:2023,
   selNode:null,gNodes:[],
   meta:null,corr:{},fc:{},cross:[],globeStyle:'dark',partialR:false,_gf:null,showFlags:false,intlOnly:false,expandRel:false,
-  sources:new Set(['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage']),
+  // Default selection: only WB + UN Population. The picker hides other sources
+  // that have no edges to either, so the user can incrementally add compatible
+  // sources from a constrained list (rather than wading through 16 toggles).
+  sources:new Set(['WB','UN Population']),
   qualityMode:'balanced',  // 'off' | 'balanced' | 'strict' — see _passThr
   // Domain collapse state (3-level source hierarchy)
   srcDomains:{macro:true, trade:true, env:true, social:true},  // true = expanded

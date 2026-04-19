@@ -742,12 +742,22 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                 #   bit 0 (q & 1) = near-duplicate name stems    → hidden by Balanced+Strict
                 #   bit 1 (q & 2) = same-source same-category    → hidden by Strict only
                 # Final q ∈ {0,1,2,3}; 0 = clean.
+                #
+                # "Tight-domain" sources are those whose indicators are
+                # mathematically derived from common underlying data (e.g.
+                # Damodaran's CRP ↔ ERP ↔ Default Spread; Heritage's freedom
+                # sub-scores all co-vary by construction). Same-source pairs
+                # in these sources are treated as near-duplicates (bit 0) so
+                # Balanced mode hides them by default.
+                _TIGHT_DOMAIN = {'Damodaran', 'Heritage'}
                 src_a = IND_SOURCE.get(a, 'WB')
                 src_b = IND_SOURCE.get(b, 'WB')
                 _q_bits = 0
-                # Same-source same-category (excludes WB which has too many cross-cat pairs)
                 if cat_a == cat_b and src_a == src_b and src_a not in ('WB',):
-                    _q_bits |= 2  # bit 1
+                    if src_a in _TIGHT_DOMAIN:
+                        _q_bits |= 1  # bit 0 — Balanced filter
+                    else:
+                        _q_bits |= 2  # bit 1 — Strict only
                 # Near-duplicate indicators (same metric, often cross-source)
                 al, bl = a.lower(), b.lower()
                 if _sim_indicator(al, bl):
@@ -903,11 +913,15 @@ for iso_a, iso_b in combinations(COUNTRIES, 2):
             # Flag different indicators from the SAME source in the same category
             # across countries — these share global development trends.
             # See within-country block for q bitfield semantics (bit 0 = dup, bit 1 = ssc).
+            _TIGHT_DOMAIN_XC = {'Damodaran', 'Heritage'}
             src_a = IND_SOURCE.get(ind_a, 'WB')
             src_b = IND_SOURCE.get(ind_b, 'WB')
             _xc_q = 0
             if ind_a != ind_b and src_a == src_b and src_a not in ('WB', 'NASA'):
-                _xc_q |= 2  # bit 1 — same-source same-category cross-country
+                if src_a in _TIGHT_DOMAIN_XC:
+                    _xc_q |= 1  # bit 0 — Balanced filter (tight-domain source)
+                else:
+                    _xc_q |= 2  # bit 1 — Strict only
             if _sim_indicator(ind_a.lower(), ind_b.lower()):
                 _xc_q |= 1  # bit 0 — near-duplicate name stem
             rb = _xc_resid.get((iso_b, ind_b))
