@@ -496,6 +496,9 @@ tr.hi td{color:var(--tx);}
             <div class="src-row" data-src="IMF" onclick="toggleSrc('IMF')"><div class="src-chk" id="sc-IMF"></div>IMF (Sovereign Debt)</div>
             <div class="src-row" data-src="Damodaran" onclick="toggleSrc('Damodaran')"><div class="src-chk" id="sc-Damodaran"></div>Damodaran (Capital Markets)</div>
             <div class="src-row" data-src="Heritage" onclick="toggleSrc('Heritage')"><div class="src-chk" id="sc-Heritage"></div>Heritage (Economic Freedom)</div>
+            <div class="src-row" data-src="Fraser" onclick="toggleSrc('Fraser')"><div class="src-chk" id="sc-Fraser"></div>Fraser (Economic Freedom)</div>
+            <div class="src-row" data-src="WBInnov" onclick="toggleSrc('WBInnov')"><div class="src-chk" id="sc-WBInnov"></div>WB Innovation (R&amp;D, Patents)</div>
+            <div class="src-row" data-src="DoingBusiness" onclick="toggleSrc('DoingBusiness')"><div class="src-chk" id="sc-DoingBusiness"></div>WB Doing Business (Business Env)</div>
           </div>
         </div>
         <div class="src-domain">
@@ -939,19 +942,25 @@ const SUBCAT_RULES=[
   {m:'Median Dividend Yield',sub:'Capital Markets'},
   {m:'Number of listed firms',sub:'Capital Markets'},
   // Heritage — Economic Freedom (under Economy)
-  {m:'Heritage Overall',sub:'Economic Freedom'},
-  {m:'Heritage Property Rights',sub:'Economic Freedom'},
-  {m:'Heritage Judicial',sub:'Economic Freedom'},
-  {m:'Heritage Government Integrity',sub:'Economic Freedom'},
-  {m:'Heritage Tax Burden',sub:'Economic Freedom'},
-  {m:'Heritage Government Spending',sub:'Economic Freedom'},
-  {m:'Heritage Fiscal Health',sub:'Economic Freedom'},
-  {m:'Heritage Business Freedom',sub:'Economic Freedom'},
-  {m:'Heritage Labor Freedom',sub:'Economic Freedom'},
-  {m:'Heritage Monetary Freedom',sub:'Economic Freedom'},
-  {m:'Heritage Trade Freedom',sub:'Economic Freedom'},
-  {m:'Heritage Investment Freedom',sub:'Economic Freedom'},
-  {m:'Heritage Financial Freedom',sub:'Economic Freedom'},
+  {m:'Heritage ',sub:'Economic Freedom'},
+  // Fraser — Economic Freedom (under Economy)
+  {m:'Fraser EFW',sub:'Economic Freedom'},
+  // WB Innovation (R&D, patents) — under Economy
+  {m:'R&D expenditure',sub:'Innovation'},
+  {m:'Patent applications',sub:'Innovation'},
+  {m:'Scientific',sub:'Innovation'},
+  {m:'Researchers in R&D',sub:'Innovation'},
+  // WB Doing Business — under Economy
+  {m:'DB Ease',sub:'Business Environment'},
+  {m:'DB Starting',sub:'Business Environment'},
+  {m:'DB Dealing',sub:'Business Environment'},
+  {m:'DB Getting',sub:'Business Environment'},
+  {m:'DB Registering',sub:'Business Environment'},
+  {m:'DB Protecting',sub:'Business Environment'},
+  {m:'DB Paying',sub:'Business Environment'},
+  {m:'DB Trading',sub:'Business Environment'},
+  {m:'DB Enforcing',sub:'Business Environment'},
+  {m:'DB Resolving',sub:'Business Environment'},
 ];
 function _getSubcat(label){
   if(!label)return null;
@@ -1478,6 +1487,9 @@ function getActiveCats(){
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
     'Heritage':      ['Economy'],
+    'Fraser':        ['Economy'],
+    'WBInnov':       ['Economy'],
+    'DoingBusiness': ['Economy'],
   };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
@@ -1967,6 +1979,9 @@ function buildNodeList(){
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
     'Heritage':      ['Economy'],
+    'Fraser':        ['Economy'],
+    'WBInnov':       ['Economy'],
+    'DoingBusiness': ['Economy'],
   };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc

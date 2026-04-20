@@ -160,7 +160,8 @@ def load_country_facts(conn):
              'who_health.csv', 'ilo_labour.csv', 'wto_services_trade.csv',
              'unpop_demographic.csv',
              'supply_chain_maritime.csv', 'unctad_maritime.csv',
-             'damodaran_capital_markets.csv', 'heritage_economic_freedom.csv']
+             'damodaran_capital_markets.csv', 'heritage_economic_freedom.csv',
+             'fraser_efw.csv', 'wb_innovation.csv', 'doing_business.csv']
     total = 0
     country_ids = {r[0]: r[1] for r in conn.execute('SELECT iso3, country_id FROM dim_country').fetchall()}
     for fname in files:

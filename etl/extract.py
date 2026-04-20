@@ -1635,6 +1635,190 @@ def fetch_heritage():
     return df
 
 
+# ── Fraser Institute — Economic Freedom of the World (annual since 2000) ──
+# Single Excel from efotw.org with a clean panel-format sheet. Provides Summary
+# score plus 5 area scores (Government Size, Legal System, Sound Money,
+# Freedom to Trade, Regulation). All 10 of our countries covered annually
+# 2000-2023, with sparser coverage in earlier decades.
+FRASER_URL = 'https://efotw.org/sites/all/modules/custom/ftw_maps_pages/files/efotw-2025-master-index-data-for-researchers-iso.xlsx'
+FRASER_FILE = 'efw_2025.xlsx'
+FRASER_INDICATORS = {
+    'Summary':  'Fraser EFW Summary Score',
+    'Area 1':   'Fraser EFW Government Size',
+    'Area 2':   'Fraser EFW Legal System & Property Rights',
+    'Area 3':   'Fraser EFW Sound Money',
+    'Area 4':   'Fraser EFW Freedom to Trade',
+    'Area 5':   'Fraser EFW Regulation',
+}
+FRASER_TARGET_ISO = {'USA','SGP','RUS','BRA','DEU','CHN','JPN','IND','IDN','KEN'}
+
+def fetch_fraser():
+    """Fraser Institute — Economic Freedom of the World annual panel data."""
+    print("\n[Fraser] Fetching Economic Freedom of the World...")
+    raw = RAW_DIR / 'fraser'
+    raw.mkdir(parents=True, exist_ok=True)
+    path = raw / FRASER_FILE
+    if not path.exists() or path.stat().st_size < 100_000:
+        try:
+            r = requests.get(FRASER_URL, timeout=120)
+            r.raise_for_status()
+            path.write_bytes(r.content)
+            print(f"  Downloaded {FRASER_FILE} ({len(r.content)//1024} KB)")
+        except Exception as e:
+            print(f"    [Fraser] download failed: {e}")
+            df = pd.DataFrame(columns=['source','iso3','year','indicator_code',
+                                        'indicator_name','category','unit','value'])
+            df.to_csv(RAW_DIR / 'fraser_efw.csv', index=False)
+            return df
+
+    rows = []
+    try:
+        df = pd.read_excel(path, sheet_name='EFW Panel Dataset')
+        # Filter to our target countries and keep only annual data >= 2000
+        df = df[df['ISO_Code'].isin(FRASER_TARGET_ISO) & (df['Year'] >= 2000)].copy()
+        for _, r in df.iterrows():
+            iso = r['ISO_Code']
+            year = int(r['Year'])
+            for src_col, label in FRASER_INDICATORS.items():
+                v = r.get(src_col)
+                try:
+                    v = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if pd.isna(v):
+                    continue
+                rows.append({
+                    'source': 'Fraser', 'iso3': iso, 'year': year,
+                    'indicator_code': 'FRASER_' + src_col.replace(' ', '_').upper(),
+                    'indicator_name': label, 'category': 'Economy',
+                    'unit': 'score (0-10)', 'value': v,
+                })
+    except Exception as e:
+        print(f"    [Fraser] parse failed: {e}")
+
+    df_out = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df_out.to_csv(RAW_DIR / 'fraser_efw.csv', index=False)
+    print(f"  [Fraser] Saved {len(df_out)} rows -> data/raw/fraser_efw.csv")
+    return df_out
+
+
+# ── World Bank Innovation Bundle — R&D, patents, scientific output ──
+# Five WB indicators that together describe a country's innovation/competitive
+# capacity (the WIPO GII angle, but WIPO no longer publishes downloadable
+# data). Tagged as a separate source ('WBInnov') so users can isolate the
+# innovation lens in the picker.
+WBINNOV_INDICATORS = {
+    'GB.XPD.RSDV.GD.ZS':    ('R&D expenditure (% of GDP)',                    'Economy', '%'),
+    'IP.PAT.RESD':          ('Patent applications, residents',                 'Economy', 'count'),
+    'IP.PAT.NRES':          ('Patent applications, non-residents',             'Economy', 'count'),
+    'IP.JRN.ARTC.SC':       ('Scientific & technical journal articles',        'Economy', 'count'),
+    'SP.POP.SCIE.RD.P6':    ('Researchers in R&D (per million people)',        'Economy', 'per M'),
+}
+
+def fetch_wb_innovation():
+    print("\n[WB Innovation] Fetching R&D / patents / scientific output...")
+    rows = []
+    for code, (name, cat, unit) in WBINNOV_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'WBINNOV', 'WBInnov', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df.to_csv(RAW_DIR / 'wb_innovation.csv', index=False)
+    print(f"  [WB Innovation] Saved {len(df)} rows -> data/raw/wb_innovation.csv")
+    return df
+
+
+# ── World Bank Doing Business archive (2003-2020, discontinued) ──
+# 11 dimensions of operational business environment. WB stopped publishing
+# Doing Business after the 2020 edition due to internal methodology issues,
+# but the historical data is still archived and widely cited. Annual coverage
+# 2003-2020 is more than enough for the year windows the app uses.
+DB_URL = 'https://archive.doingbusiness.org/content/dam/doingBusiness/excel/db2020/Historical-data---COMPLETE-dataset-with-scores.xlsx'
+DB_FILE = 'db_archive.xlsx'
+
+# (column-name substring, canonical_label) — pick the latest-methodology
+# variant when multiple exist (DB17-20 > DB16-20 > older).
+DB_INDICATORS = [
+    ('Ease of doing business score (DB17-20', 'DB Ease of Doing Business Score'),
+    ('Score-Starting a business',             'DB Starting a Business'),
+    ('Score-Dealing with construction permits (DB16-20', 'DB Dealing with Construction Permits'),
+    ('Score-Getting electricity (DB16-20',    'DB Getting Electricity'),
+    ('Score-Registering property (DB17-20',   'DB Registering Property'),
+    ('Score-Getting credit (DB15-20',         'DB Getting Credit'),
+    ('Score-Protecting minority investors (DB15-20', 'DB Protecting Minority Investors'),
+    ('Score-Paying taxes (DB17-20',           'DB Paying Taxes'),
+    ('Score-Trading across borders (DB16-20', 'DB Trading Across Borders'),
+    ('Score-Enforcing contracts (DB17-20',    'DB Enforcing Contracts'),
+    ('Score-Resolving insolvency',            'DB Resolving Insolvency'),
+]
+
+def fetch_doing_business():
+    """World Bank Doing Business archive — operational business-environment scores."""
+    print("\n[DB Archive] Fetching World Bank Doing Business (2003-2020)...")
+    raw = RAW_DIR / 'doingbusiness'
+    raw.mkdir(parents=True, exist_ok=True)
+    path = raw / DB_FILE
+    if not path.exists() or path.stat().st_size < 100_000:
+        try:
+            r = requests.get(DB_URL, timeout=120)
+            r.raise_for_status()
+            path.write_bytes(r.content)
+            print(f"  Downloaded {DB_FILE} ({len(r.content)//1024} KB)")
+        except Exception as e:
+            print(f"    [DB] download failed: {e}")
+            df = pd.DataFrame(columns=['source','iso3','year','indicator_code',
+                                        'indicator_name','category','unit','value'])
+            df.to_csv(RAW_DIR / 'doing_business.csv', index=False)
+            return df
+
+    rows = []
+    try:
+        df = pd.read_excel(path, sheet_name='All Data', header=3)
+        df = df[df['Country code'].isin(FRASER_TARGET_ISO)].copy()
+        cols = list(df.columns)
+        # Resolve each indicator's actual column name (substring match — picks
+        # the first match, which is the most recent methodology by file order)
+        col_map = {}
+        for substr, label in DB_INDICATORS:
+            match = next((c for c in cols if isinstance(c, str) and c.startswith(substr)), None)
+            col_map[label] = match
+        for _, r in df.iterrows():
+            iso = r['Country code']
+            try:
+                year = int(r['DB Year'])
+            except (TypeError, ValueError):
+                continue
+            for label, col in col_map.items():
+                if col is None:
+                    continue
+                v = r.get(col)
+                try:
+                    v = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if pd.isna(v):
+                    continue
+                rows.append({
+                    'source': 'DoingBusiness', 'iso3': iso, 'year': year,
+                    'indicator_code': 'DB_' + label.replace(' ', '_').upper()[:50],
+                    'indicator_name': label, 'category': 'Economy',
+                    'unit': 'score (0-100)', 'value': v,
+                })
+    except Exception as e:
+        print(f"    [DB] parse failed: {e}")
+
+    df_out = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df_out.to_csv(RAW_DIR / 'doing_business.csv', index=False)
+    print(f"  [DB] Saved {len(df_out)} rows -> data/raw/doing_business.csv")
+    return df_out
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -1655,5 +1839,8 @@ if __name__ == '__main__':
     fetch_unctad()
     fetch_damodaran()
     fetch_heritage()
+    fetch_fraser()
+    fetch_wb_innovation()
+    fetch_doing_business()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")
