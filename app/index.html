@@ -334,9 +334,216 @@ tr.hi td{color:var(--tx);}
 /* ── CORRELATION SPLIT COLUMNS ── */
 .corr-vars-col{flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--b1);overflow:hidden;}
 .corr-vars-col-hdr{padding:4px 6px;font-size:8px;letter-spacing:.1em;color:var(--mu);text-transform:uppercase;border-bottom:1px solid var(--b1);flex-shrink:0;}
+/* ── TUTORIAL + INDUSTRY BUTTONS in top bar ── */
+.htoggle-howto, .htoggle-industry {
+  color: var(--ph) !important;
+  border: 1px solid var(--ph);
+  margin: 6px 4px 6px 0;
+  padding: 0 12px !important;
+  border-radius: 2px;
+  letter-spacing: .09em;
+  font-weight: 600;
+}
+.htoggle-howto:hover, .htoggle-industry:hover {
+  background: rgba(200,240,96,.08);
+}
+/* ── TUTORIAL OVERLAY ── */
+#tut-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 9998;
+  pointer-events: none;
+}
+#tut-highlight {
+  display: none;
+  position: fixed;
+  border: 2px solid var(--ph);
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(200,240,96,.25), 0 0 30px rgba(200,240,96,.35);
+  z-index: 9999;
+  pointer-events: none;
+  transition: all .25s ease;
+}
+#tut-bubble {
+  display: none;
+  position: fixed;
+  width: 400px;
+  background: #0d0f0c;
+  border: 1.5px solid var(--ph);
+  border-radius: 4px;
+  padding: 14px 16px 12px;
+  z-index: 10000;
+  color: var(--tx);
+  font-size: 10px;
+  line-height: 1.5;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+#tut-bubble .tut-hd {
+  font-size: 11px;
+  color: var(--ph);
+  font-weight: 700;
+  letter-spacing: .05em;
+  margin-bottom: 6px;
+}
+#tut-bubble .tut-body { color: var(--mu2); font-size: 9.5px; }
+#tut-bubble .tut-body b { color: var(--ph); }
+#tut-bubble .tut-ft {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--b2);
+}
+#tut-bubble .tut-count { font-size: 8px; color: var(--mu); letter-spacing: .09em; }
+#tut-bubble .tut-actions { display: flex; gap: 6px; }
+#tut-bubble .tut-btn {
+  padding: 4px 14px;
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  color: var(--mu);
+  border: 1px solid var(--b2);
+  border-radius: 2px;
+  cursor: pointer;
+  background: transparent;
+  transition: all .12s;
+  user-select: none;
+}
+#tut-bubble .tut-btn:hover { color: var(--tx); }
+#tut-bubble .tut-btn.primary {
+  color: var(--ph);
+  border-color: var(--ph);
+  background: rgba(200,240,96,.05);
+}
+#tut-bubble .tut-btn.primary:hover { background: rgba(200,240,96,.12); }
+/* Arrow pointing at highlight */
+#tut-bubble.tut-arrow-top::before,
+#tut-bubble.tut-arrow-bottom::before,
+#tut-bubble.tut-arrow-left::before,
+#tut-bubble.tut-arrow-right::before {
+  content: ''; position: absolute;
+  width: 10px; height: 10px;
+  background: #0d0f0c;
+  border: 1.5px solid var(--ph);
+  transform: rotate(45deg);
+}
+#tut-bubble.tut-arrow-top::before    { top: -6px; left: calc(50% - 6px); border-right: none; border-bottom: none; }
+#tut-bubble.tut-arrow-bottom::before { bottom: -6px; left: calc(50% - 6px); border-left: none; border-top: none; }
+#tut-bubble.tut-arrow-left::before   { left: -6px; top: calc(50% - 6px); border-right: none; border-top: none; }
+#tut-bubble.tut-arrow-right::before  { right: -6px; top: calc(50% - 6px); border-left: none; border-bottom: none; }
+
+/* ── INDUSTRY MENU (Start-button style dropdown) ── */
+#industry-menu {
+  display: none;
+  position: fixed;
+  top: 48px; left: 130px;
+  width: 280px;
+  background: #0d0f0c;
+  border: 1px solid var(--ph);
+  border-radius: 3px;
+  box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+  z-index: 900;
+  padding: 8px 0;
+}
+#industry-menu .im-title {
+  font-size: 8px;
+  color: var(--mu);
+  letter-spacing: .1em;
+  padding: 4px 14px 6px;
+  border-bottom: 1px solid var(--b1);
+}
+#industry-menu .im-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 10px;
+  color: var(--tx);
+  cursor: pointer;
+  transition: background .12s;
+}
+#industry-menu .im-item:hover { background: rgba(200,240,96,.06); color: var(--ph); }
+#industry-menu .im-item.disabled { color: var(--mu); cursor: not-allowed; }
+#industry-menu .im-item.disabled:hover { background: transparent; color: var(--mu); }
+#industry-menu .im-hint { font-size: 7.5px; color: var(--mu); padding: 4px 14px 6px; font-style: italic; }
+
+/* ── INDUSTRY SUMMARY PANEL (right-side, under predictor) ── */
+#industry-panel {
+  display: none;
+  position: fixed;
+  top: 44px; right: 0;
+  width: 420px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  background: #0d0f0c;
+  border-left: 1px solid var(--ph);
+  z-index: 800;
+  flex-direction: column;
+  padding: 0;
+  font-size: 9px;
+}
+#industry-panel .ind-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--b2);
+  background: rgba(200,240,96,.04);
+}
+#industry-panel .ind-hdr-title { font-size: 11px; color: var(--ph); letter-spacing: .06em; font-weight: 600; }
+#industry-panel .ind-hdr-close { font-size: 12px; color: var(--mu); cursor: pointer; padding: 2px 6px; }
+#industry-panel .ind-hdr-close:hover { color: var(--ph); }
+#industry-panel .ind-intro { padding: 10px 14px; color: var(--mu2); font-style: italic; font-size: 9px; line-height: 1.5; border-bottom: 1px solid var(--b1); }
+#industry-panel .ind-sec { padding: 8px 0 4px; border-bottom: 1px solid var(--b1); }
+#industry-panel .ind-sec-hdr { font-size: 8px; color: var(--ph); letter-spacing: .1em; padding: 4px 14px 6px; font-weight: 600; }
+#industry-panel .ind-row {
+  padding: 6px 14px;
+  border-left: 2px solid transparent;
+  transition: background .12s;
+}
+#industry-panel .ind-row:hover { background: rgba(255,255,255,0.02); border-left-color: var(--ph); }
+#industry-panel .ind-row.curated-tgt { border-left-color: var(--ph); background: rgba(200,240,96,.03); }
+#industry-panel .ind-row.missing { opacity: 0.4; }
+#industry-panel .ind-lbl { color: var(--tx); font-weight: 500; margin-bottom: 2px; }
+#industry-panel .ind-rat { color: var(--mu); font-size: 8px; line-height: 1.4; }
+#industry-panel .ind-warn { color: var(--sv, #a66); font-size: 7.5px; margin-left: 4px; }
+#industry-panel .ind-hint { padding: 10px 14px; color: var(--mu); font-size: 7.5px; font-style: italic; }
 </style>
 </head>
 <body>
+
+<!-- ── TUTORIAL OVERLAY (hidden until startTutorial() runs) ── -->
+<div id="tut-overlay"></div>
+<div id="tut-highlight"></div>
+<div id="tut-bubble">
+  <div class="tut-hd" id="tut-title"></div>
+  <div class="tut-body" id="tut-body"></div>
+  <div class="tut-ft">
+    <div class="tut-count" id="tut-step-count"></div>
+    <div class="tut-actions">
+      <div class="tut-btn" id="tut-skip" onclick="_tutorialEnd()">SKIP</div>
+      <div class="tut-btn" id="tut-prev" onclick="tutorialPrev()">BACK</div>
+      <div class="tut-btn primary" id="tut-next" onclick="tutorialNext()">NEXT</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── INDUSTRY START MENU (hidden until openIndustryMenu()) ── -->
+<div id="industry-menu">
+  <div class="im-title">SELECT INDUSTRY</div>
+  <div class="im-item" onclick="loadIndustryView('mining')">Mining &amp; Minerals</div>
+  <div class="im-item disabled" title="Coming soon">Health &amp; Pharmaceuticals</div>
+  <div class="im-item disabled" title="Coming soon">Shipping &amp; Logistics</div>
+  <div class="im-item disabled" title="Coming soon">Retail &amp; Consumer Goods</div>
+  <div class="im-item disabled" title="Coming soon">Electronics &amp; Tech</div>
+  <div class="im-item disabled" title="Coming soon">Automotive Manufacturing</div>
+  <div class="im-item disabled" title="Coming soon">Farming &amp; Agriculture</div>
+  <div class="im-hint">Starting with Mining — more industries coming.</div>
+</div>
+
+<!-- ── INDUSTRY SUMMARY PANEL (right-side, hidden until loadIndustryView()) ── -->
+<div id="industry-panel"></div>
+
 <div id="loader">
   <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--wh)">X <span style="font-size:12px;color:var(--mu);font-family:'DM Mono',monospace">v0.1</span></div>
   <div class="loader-bar"><div class="loader-fill" id="loader-fill" style="width:0%"></div></div>
@@ -387,6 +594,8 @@ tr.hi td{color:var(--tx);}
   <div class="hmode">
     <div class="hmbtn on" id="m-explore" onclick="setMode('explore',this)"><div class="dot"></div>EXPLORE</div>
   </div>
+  <div class="htoggle htoggle-industry" id="industry-btn" onclick="openIndustryMenu()" title="Open an industry-driven view (Mining, Health, Shipping, etc.)">INDUSTRY ▸</div>
+  <div class="htoggle htoggle-howto" id="howto-btn" onclick="startTutorial()" title="Guided walkthrough of the app">HOW-TO</div>
   <div class="htoggle" id="expand-toggle" onclick="toggleExpandRel()" title="Show connected indicators from other data sources (neighbour expansion)">EXP.RELATION</div>
   <div class="htoggle" onclick="globeResetView()" title="Re-centre globe">GLOBE</div>
   <div class="htoggle" id="texture-toggle" onclick="cycleGlobeTexture()" title="Cycle globe texture">TEXTURE: <span id="texture-label">DARK</span></div>
@@ -498,6 +707,7 @@ tr.hi td{color:var(--tx);}
             <div class="src-row" data-src="Fraser" onclick="toggleSrc('Fraser')"><div class="src-chk" id="sc-Fraser"></div>Fraser (Economic Freedom)</div>
             <div class="src-row" data-src="WBInnov" onclick="toggleSrc('WBInnov')"><div class="src-chk" id="sc-WBInnov"></div>WB Innovation (R&amp;D, Patents)</div>
             <div class="src-row" data-src="DoingBusiness" onclick="toggleSrc('DoingBusiness')"><div class="src-chk" id="sc-DoingBusiness"></div>WB Doing Business (Business Env)</div>
+            <div class="src-row" data-src="USGS" onclick="toggleSrc('USGS')"><div class="src-chk" id="sc-USGS"></div>USGS (US Minerals Commodities)</div>
           </div>
         </div>
         <div class="src-domain">
@@ -947,6 +1157,8 @@ const SUBCAT_RULES=[
   {m:'Patent applications',sub:'Innovation'},
   {m:'Scientific',sub:'Innovation'},
   {m:'Researchers in R&D',sub:'Innovation'},
+  // USGS — Mining & Minerals (under Economy)
+  {m:'(USGS)',sub:'Mining & Minerals'},
   // WB Doing Business — under Economy
   {m:'DB Ease',sub:'Business Environment'},
   {m:'DB Starting',sub:'Business Environment'},
@@ -1486,6 +1698,7 @@ function getActiveCats(){
     'Fraser':        ['Economy'],
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
+    'USGS':          ['Economy'],
   };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
@@ -1518,7 +1731,7 @@ function toggleSrcDomain(d){
 }
 // ── SOURCE PICKER: reset to all-on visible state ──
 function resetSrcPicker(){
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS'];
   S.sources=new Set(all);
   document.querySelectorAll('.src-row[data-src]').forEach(r=>r.classList.remove('hide','dim'));
   _syncSrcCheckboxes();
@@ -1558,7 +1771,7 @@ function _buildSrcConnMap(){
 // ── SOURCE PICKER: hide rows that have no edges connecting to any selected source ──
 function _recomputeSrcVisibility(){
   const map=_buildSrcConnMap();
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS'];
   // If nothing selected, show everything
   if(S.sources.size===0){
     all.forEach(s=>{const r=document.querySelector(`.src-row[data-src="${s}"]`); if(r){r.classList.remove('hide','dim');}});
@@ -1977,6 +2190,7 @@ function buildNodeList(){
     'Fraser':        ['Economy'],
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
+    'USGS':          ['Economy'],
   };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
@@ -3985,6 +4199,373 @@ async function init(){
 }
 init();
 window.addEventListener('resize',()=>{renderNet();_predResizeChart();});
+
+// ============================================================================
+//  TUTORIAL WALKTHROUGH — lime-green speech bubbles, scenario-driven
+// ============================================================================
+const TUTORIAL = {
+  step: 0,
+  active: false,
+  // Restore state on teardown so tutorial doesn't permanently change user prefs
+  _savedSources: null,
+  _savedCountries: null,
+  _savedQuality: null,
+};
+
+// Each step points at a DOM element (via getter fn) and shows a speech bubble.
+// `side` controls where the bubble sits relative to the target.
+// `action` (optional) = fn run on step entry (e.g. auto-check a box to
+//  illustrate the action the user is being taught).
+const TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to Global Monitor',
+    body: 'This walkthrough will show you how to forecast <b>US mineral production</b>. You\u2019ll pick datasets, set filters, find an indicator, and run a prediction. About 2 minutes.',
+    target: null,
+    side: 'center',
+  },
+  {
+    title: 'Step 1 — Pick a country',
+    body: 'This is the country picker. The scenario is US-focused so we\u2019re starting with United States already selected. In normal use, click here to change countries or multi-select.',
+    target: () => document.getElementById('country-selector-btn') || document.getElementById('country-label')?.parentElement,
+    side: 'bottom',
+  },
+  {
+    title: 'Step 2 — Turn on the relevant data sources',
+    body: 'We\u2019ll enable <b>USGS (US Minerals)</b>, <b>Comtrade</b> (global trade), <b>IEA</b> (energy) and <b>WB Innovation</b>. Watch the checkboxes flip.',
+    target: () => document.getElementById('src-panel'),
+    side: 'right',
+    action: () => {
+      ['USGS','Comtrade','IEA','WBInnov'].forEach(s => { if (!S.sources.has(s)) toggleSrc(s); });
+    },
+  },
+  {
+    title: 'Step 3 — Correlation strength filter',
+    body: 'Drag the <b>|r| Range</b> sliders to hide weak correlations. Higher minimum = only strong relationships. We\u2019ll leave it at 0.00\u20131.00 for this scenario.',
+    target: () => document.getElementById('thr-min')?.parentElement?.parentElement,
+    side: 'right',
+  },
+  {
+    title: 'Step 4 — Confidence tier (optional)',
+    body: 'When turned on, these four pills filter edges by strength quartile. DEFINITIVE shows only the top 25%. Off by default; leave it off for this tutorial.',
+    target: () => document.getElementById('conf-enable-btn')?.parentElement,
+    side: 'right',
+  },
+  {
+    title: 'Step 5 — Redundant-correlation filter',
+    body: 'BALANCED (default) hides obvious near-duplicate pairs. STRICT also hides same-source co-trending pairs. OFF shows everything. We\u2019ll stick with BALANCED.',
+    target: () => document.getElementById('dq-balanced')?.parentElement,
+    side: 'right',
+  },
+  {
+    title: 'Step 6 — Find the indicator',
+    body: 'Type in the search box to find an indicator. Let\u2019s search for <b>"aluminum"</b> (we\u2019re watching USGS US aluminum data).',
+    target: () => document.querySelector('input[placeholder*="Search"]'),
+    side: 'right',
+    action: () => {
+      const box = document.querySelector('input[placeholder*="Search"]');
+      if (box) {
+        box.value = 'aluminum';
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    },
+  },
+  {
+    title: 'Step 7 — Pick a mineral indicator',
+    body: 'Click any node in the tree to select it. For this scenario we\u2019ll select <b>US Aluminum Primary Production (USGS)</b> — the key mining-output metric.',
+    target: () => document.getElementById('ntree'),
+    side: 'right',
+    action: () => {
+      const target = (S.gNodes || []).find(n => (n.label || '').includes('Aluminum') && (n.label || '').includes('Primary') && (n.id || '').startsWith('USA'));
+      if (target) selectNode(target);
+    },
+  },
+  {
+    title: 'Step 8 — Review the connections',
+    body: 'The right panel now shows all indicators correlated with the selected node. Each row shows the other indicator, correlation value, strength tier and stability.',
+    target: () => document.getElementById('nd-conns'),
+    side: 'left',
+  },
+  {
+    title: 'Step 9 — Run the Predictor',
+    body: 'Click <b>PREDICT THIS</b> to auto-populate the predictor with the selected node as output and its top hop-1 neighbours as inputs.',
+    target: () => document.getElementById('nd-predict-btn'),
+    side: 'left',
+    action: () => {
+      if (typeof predFromNode === 'function') predFromNode();
+    },
+  },
+  {
+    title: 'Step 10 — Set the forecast horizon',
+    body: 'Choose how many years ahead to forecast. 3yr is a good medium-term horizon. Then click RUN — the model returns a prediction with uncertainty bounds.',
+    target: () => document.querySelector('.pd-hbtn, [id*="horizon"]') || document.getElementById('pgtab-predictor'),
+    side: 'left',
+  },
+  {
+    title: 'Well done!',
+    body: 'You\u2019ve just forecasted US aluminum production. The same flow works for any indicator. Click <b>HOW-TO</b> any time to see this again. Happy exploring.',
+    target: null,
+    side: 'center',
+  },
+];
+
+function startTutorial(){
+  if (TUTORIAL.active) return;
+  TUTORIAL.active = true;
+  TUTORIAL.step = 0;
+  // Snapshot state so we can restore on close
+  TUTORIAL._savedSources = new Set(S.sources);
+  TUTORIAL._savedCountries = [...S.countries];
+  TUTORIAL._savedQuality = S.qualityMode;
+  // Make sure we're on USA so the scenario makes sense
+  if (!S.countries.includes('USA')) {
+    S.countries = ['USA'];
+    if (typeof applyCountryChange === 'function') applyCountryChange();
+  }
+  _tutorialRender();
+}
+function _tutorialEnd(){
+  TUTORIAL.active = false;
+  const ov = document.getElementById('tut-overlay'); if (ov) ov.style.display = 'none';
+  const hl = document.getElementById('tut-highlight'); if (hl) hl.style.display = 'none';
+  const bb = document.getElementById('tut-bubble'); if (bb) bb.style.display = 'none';
+  // Restore user state
+  if (TUTORIAL._savedSources) {
+    S.sources = TUTORIAL._savedSources;
+    if (typeof _syncSrcCheckboxes === 'function') _syncSrcCheckboxes();
+  }
+  if (TUTORIAL._savedCountries) S.countries = TUTORIAL._savedCountries;
+  if (TUTORIAL._savedQuality) S.qualityMode = TUTORIAL._savedQuality;
+  if (typeof clearSel === 'function') clearSel();
+  if (typeof renderNet === 'function') renderNet();
+}
+function tutorialNext(){
+  if (TUTORIAL.step >= TUTORIAL_STEPS.length - 1) { _tutorialEnd(); return; }
+  TUTORIAL.step++;
+  _tutorialRender();
+}
+function tutorialPrev(){
+  if (TUTORIAL.step <= 0) return;
+  TUTORIAL.step--;
+  _tutorialRender();
+}
+function _tutorialRender(){
+  const step = TUTORIAL_STEPS[TUTORIAL.step];
+  const ov  = document.getElementById('tut-overlay');
+  const hl  = document.getElementById('tut-highlight');
+  const bb  = document.getElementById('tut-bubble');
+  if (!ov || !hl || !bb) return;
+  ov.style.display = 'block';
+
+  // Run any action associated with this step (e.g. toggle sources)
+  if (step.action) try { step.action(); } catch(e) { console.warn('tutorial action:', e); }
+
+  // Update bubble content
+  document.getElementById('tut-title').innerHTML = step.title;
+  document.getElementById('tut-body').innerHTML  = step.body;
+  document.getElementById('tut-step-count').textContent = `${TUTORIAL.step + 1} / ${TUTORIAL_STEPS.length}`;
+  document.getElementById('tut-next').textContent = TUTORIAL.step === TUTORIAL_STEPS.length - 1 ? 'FINISH' : 'NEXT';
+  document.getElementById('tut-prev').style.visibility = TUTORIAL.step === 0 ? 'hidden' : 'visible';
+
+  // Position highlight + bubble
+  let targetEl = null;
+  if (step.target) try { targetEl = step.target(); } catch(e) {}
+  if (targetEl && step.side !== 'center') {
+    const r = targetEl.getBoundingClientRect();
+    hl.style.display = 'block';
+    hl.style.left   = (r.left - 4) + 'px';
+    hl.style.top    = (r.top  - 4) + 'px';
+    hl.style.width  = (r.width  + 8) + 'px';
+    hl.style.height = (r.height + 8) + 'px';
+    _positionBubble(bb, r, step.side);
+  } else {
+    hl.style.display = 'none';
+    // Centre the bubble on the screen for intro/outro
+    bb.style.left = (window.innerWidth  / 2 - 200) + 'px';
+    bb.style.top  = (window.innerHeight / 2 - 100) + 'px';
+    bb.classList.remove('tut-arrow-top','tut-arrow-bottom','tut-arrow-left','tut-arrow-right');
+  }
+  bb.style.display = 'block';
+}
+function _positionBubble(bb, targetRect, side){
+  const pad = 18;
+  const bw = 400, bh = bb.offsetHeight || 200;
+  let left, top;
+  bb.classList.remove('tut-arrow-top','tut-arrow-bottom','tut-arrow-left','tut-arrow-right');
+  if (side === 'bottom') {
+    left = targetRect.left + (targetRect.width / 2) - (bw / 2);
+    top  = targetRect.bottom + pad;
+    bb.classList.add('tut-arrow-top');
+  } else if (side === 'top') {
+    left = targetRect.left + (targetRect.width / 2) - (bw / 2);
+    top  = targetRect.top - bh - pad;
+    bb.classList.add('tut-arrow-bottom');
+  } else if (side === 'left') {
+    left = targetRect.left - bw - pad;
+    top  = targetRect.top + (targetRect.height / 2) - (bh / 2);
+    bb.classList.add('tut-arrow-right');
+  } else { // right
+    left = targetRect.right + pad;
+    top  = targetRect.top + (targetRect.height / 2) - (bh / 2);
+    bb.classList.add('tut-arrow-left');
+  }
+  // Clamp to viewport so bubble doesn't go off-screen
+  left = Math.max(10, Math.min(window.innerWidth  - bw - 10, left));
+  top  = Math.max(10, Math.min(window.innerHeight - bh - 10, top));
+  bb.style.left = left + 'px';
+  bb.style.top  = top  + 'px';
+}
+
+// ============================================================================
+//  INDUSTRY VIEW — Start-menu style panel + predefined mining ontology
+// ============================================================================
+const INDUSTRY_ONTOLOGY = {
+  mining: {
+    name: 'Mining & Minerals',
+    description: 'Forecast mineral production using energy inputs, trading-partner demand, and macro drivers.',
+    required_sources: ['USGS','WB','Comtrade','WBInnov','Supply Chain','IEA'],
+    target: {
+      label: 'US Aluminum Apparent Consumption (USGS)',
+      rationale: 'Apparent consumption = production + imports − exports ± stocks. The cleanest single proxy for US mineral market demand.'
+    },
+    hop_1_direct_inputs: [
+      { label: 'US Aluminum Primary Production (USGS)',    rationale: 'Domestic extraction supplies demand before imports.' },
+      { label: 'US Copper Primary Production (USGS)',      rationale: 'Copper production co-moves with aluminum via shared mining sector.' },
+      { label: 'Electricity from coal (% of total)',       rationale: 'Smelting is energy-intensive; coal is the historic industrial baseload.' },
+      { label: 'Employment in industry (% of total)',      rationale: 'Industrial labour supply \u2014 direct input to mining/smelting.' },
+      { label: 'US Aluminum Net Import Reliance (USGS)',   rationale: 'Share of consumption covered by imports vs domestic production.' },
+    ],
+    hop_2_demand_drivers: [
+      { label: 'Imports of goods and services (% of GDP)', rationale: 'Trading-partner demand proxy \u2014 China and Japan import US metals.' },
+      { label: 'GDP growth rate (annual %)',               rationale: 'Macro growth drives construction/auto/electrical demand for metals.' },
+      { label: 'Container port throughput (TEU)',          rationale: 'Physical metal flows via containerised trade.' },
+    ],
+    hop_3_macro_drivers: [
+      { label: 'Official exchange rate (LCU per USD)',     rationale: 'Commodities are USD-denominated; a strong dollar suppresses export demand.' },
+      { label: 'Trade (% of GDP)',                         rationale: 'Overall trade intensity \u2014 the channel commodities flow through.' },
+      { label: 'R&D expenditure (% of GDP)',               rationale: 'Substitute-material innovation (e.g. aluminum alternatives) affects long-run demand.' },
+    ],
+  },
+  // Additional industries follow the same schema — intentionally left for
+  // later iteration so we can validate the mining template first.
+};
+
+function openIndustryMenu(){
+  const m = document.getElementById('industry-menu');
+  if (!m) return;
+  const visible = m.style.display === 'block';
+  m.style.display = visible ? 'none' : 'block';
+  // Set up one-time outside-click handler to close the menu
+  if (!visible) {
+    setTimeout(() => {
+      document.addEventListener('click', _industryMenuOutsideClick, { once: true });
+    }, 0);
+  }
+}
+function _industryMenuOutsideClick(e){
+  const m = document.getElementById('industry-menu');
+  const btn = document.getElementById('industry-btn');
+  if (!m) return;
+  if (m.contains(e.target) || btn?.contains(e.target)) {
+    // Clicked inside menu/button — keep open, re-arm outside handler
+    document.addEventListener('click', _industryMenuOutsideClick, { once: true });
+    return;
+  }
+  m.style.display = 'none';
+}
+function closeIndustryMenu(){
+  const m = document.getElementById('industry-menu'); if (m) m.style.display = 'none';
+}
+function loadIndustryView(industry){
+  closeIndustryMenu();
+  const o = INDUSTRY_ONTOLOGY[industry];
+  if (!o) { alert('Industry not yet defined: ' + industry); return; }
+
+  // Auto-enable the sources this industry depends on (so its nodes actually
+  // render in the graph — without this, sources left off by default would
+  // show all curated picks as "not in data")
+  if (o.required_sources) {
+    let changed = false;
+    o.required_sources.forEach(s => {
+      if (!S.sources.has(s)) { S.sources.add(s); changed = true; }
+    });
+    if (changed) {
+      _syncSrcCheckboxes();
+      S._srcConn = null;
+      buildNodeList(); updateMeta(); renderNet(); _recomputeSrcVisibility();
+    }
+  }
+
+  // Build a list of every indicator label referenced in the ontology — these
+  // are the "curated" nodes. The hybrid view shows these + their neighbours.
+  const curated = new Set();
+  curated.add(o.target.label);
+  [...o.hop_1_direct_inputs, ...o.hop_2_demand_drivers, ...o.hop_3_macro_drivers]
+    .forEach(x => curated.add(x.label));
+
+  // 1) Show the static summary table in a side panel
+  _renderIndustryTable(o, curated);
+
+  // 2) Populate the predictor with target (output) + hop_1 (inputs)
+  _populatePredictorFromOntology(o);
+}
+
+function _renderIndustryTable(o, curatedSet){
+  const panel = document.getElementById('industry-panel');
+  if (!panel) return;
+  panel.style.display = 'flex';
+  const rowsHtml = (arr) => arr.map(x => {
+    const found = _ontologyIndicatorExists(x.label);
+    return `<div class="ind-row ${found ? '' : 'missing'}">
+      <div class="ind-lbl">${x.label}${found ? '' : ' <span class="ind-warn">[not in data]</span>'}</div>
+      <div class="ind-rat">${x.rationale}</div>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="ind-hdr">
+      <div class="ind-hdr-title">${o.name}</div>
+      <div class="ind-hdr-close" onclick="closeIndustryView()">\u2715</div>
+    </div>
+    <div class="ind-intro">${o.description}</div>
+    <div class="ind-sec"><div class="ind-sec-hdr">Target output</div>
+      <div class="ind-row curated-tgt">
+        <div class="ind-lbl">${o.target.label}</div>
+        <div class="ind-rat">${o.target.rationale}</div>
+      </div>
+    </div>
+    <div class="ind-sec"><div class="ind-sec-hdr">Hop 1 \u2014 direct inputs</div>${rowsHtml(o.hop_1_direct_inputs)}</div>
+    <div class="ind-sec"><div class="ind-sec-hdr">Hop 2 \u2014 demand drivers</div>${rowsHtml(o.hop_2_demand_drivers)}</div>
+    <div class="ind-sec"><div class="ind-sec-hdr">Hop 3 \u2014 macro drivers</div>${rowsHtml(o.hop_3_macro_drivers)}</div>
+    <div class="ind-hint">Curated picks. Rows marked [not in data] are suggested but not yet loaded for your current country/window.</div>
+  `;
+}
+function closeIndustryView(){
+  const p = document.getElementById('industry-panel'); if (p) p.style.display = 'none';
+}
+function _ontologyIndicatorExists(label){
+  // Check the full indicator registry rather than the currently-rendered
+  // subgraph — the industry view auto-enables required sources, but correlation
+  // filters (threshold, quality mode) may still hide some indicators from
+  // the rendered graph without them being "missing" from the data.
+  return !!(S.meta?.indicator_sources?.[label]);
+}
+function _populatePredictorFromOntology(o){
+  if (typeof PRED === 'undefined') return;
+  // Give the graph a moment to re-render after source toggling, then find the
+  // target node and run predFromNode. Prefer USA (most curated picks are US).
+  setTimeout(() => {
+    const iso3 = S.countries[0] || 'USA';
+    const target = (S.gNodes || []).find(n =>
+      (n.label || '') === o.target.label && (n.id || '').startsWith(iso3));
+    if (!target) {
+      console.warn('[industry] target not found in rendered graph:', o.target.label);
+      return;
+    }
+    selectNode(target);
+    setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 200);
+  }, 500);
+}
+
 </script>
 </body>
 </html>

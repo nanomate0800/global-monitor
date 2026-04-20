@@ -100,6 +100,7 @@ def _infer_source(code):
     if code.startswith('FRASER'): return 'Fraser'
     if code.startswith('WBINNOV'): return 'WBInnov'
     if code.startswith('DB_'):    return 'DoingBusiness'
+    if code.startswith('USGS'):   return 'USGS'
     return 'WB'
 
 # Pull unique indicator→source map from db

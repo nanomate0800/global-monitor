@@ -1659,6 +1659,137 @@ def fetch_doing_business():
     return df_out
 
 
+# ── USGS — U.S. historical mineral commodity statistics ──
+# Data Series 140: annual time series back to 1900 for US primary production,
+# apparent consumption, imports, exports, world production, net import
+# reliance, and unit value for ~30 mineral commodities. US-only data (USGS
+# is the U.S. Geological Survey). Tagged iso3=USA only.
+USGS_BASE = 'https://d9-wret.s3.us-west-2.amazonaws.com/assets/palladium/production/mineral-pubs/historical-statistics'
+USGS_COMMODITIES = {
+    # short_code -> (display_name, sheet_name)  sheet_name is what USGS uses
+    'alumi': ('Aluminum',     'Aluminum'),
+    'coppe': ('Copper',       'Copper'),
+    'lead':  ('Lead',         'Lead'),
+    'zinc':  ('Zinc',         'Zinc'),
+    'gold':  ('Gold',         'Gold'),
+    'nicke': ('Nickel',       'Nickel'),
+    'tin':   ('Tin',          'Tin'),
+    'tungs': ('Tungsten',     'Tungsten'),
+    'manga': ('Manganese',    'Manganese'),
+    'chrom': ('Chromium',     'Chromium'),
+    'molyb': ('Molybdenum',   'Molybdenum'),
+    'lithi': ('Lithium',      'Lithium'),
+    'cobal': ('Cobalt',       'Cobalt'),
+    'bauxi': ('Bauxite',      'Bauxite'),
+    'plati': ('Platinum',     'Platinum'),
+    'graph': ('Graphite',     'Graphite'),
+    'vanad': ('Vanadium',     'Vanadium'),
+    'antim': ('Antimony',     'Antimony'),
+    'bismu': ('Bismuth',      'Bismuth'),
+    'mercu': ('Mercury',      'Mercury'),
+    'cadmi': ('Cadmium',      'Cadmium'),
+    'arsen': ('Arsenic',      'Arsenic'),
+    'beryl': ('Beryllium',    'Beryllium'),
+    'phosp': ('Phosphate',    'Phosphate'),
+    'potas': ('Potash',       'Potash'),
+    'sulfu': ('Sulfur',       'Sulfur'),
+    'salt':  ('Salt',         'Salt'),
+    'fluor': ('Fluorspar',    'Fluorspar'),
+    'gypsu': ('Gypsum',       'Gypsum'),
+    'boron': ('Boron',        'Boron'),
+    'talc':  ('Talc',         'Talc'),
+}
+
+# Target columns to pull from each commodity sheet. Many commodity sheets use
+# slightly different spellings (e.g. 'Imports ' vs 'Imports', or missing
+# 'Apparent consumption' entirely). We match by substring, fall back to None.
+USGS_METRICS = [
+    ('Primary production',  'Primary Production',   'metric tons'),
+    ('Apparent consumption','Apparent Consumption', 'metric tons'),
+    ('World production',    'World Production',     'metric tons'),
+    ('Net import reliance', 'Net Import Reliance',  '%'),
+    ('Unit value',          'Unit Value',           '$/t'),
+]
+
+def fetch_usgs():
+    """USGS Data Series 140 — US mineral commodity history."""
+    print("\n[USGS] Fetching U.S. mineral commodity historical statistics...")
+    raw = RAW_DIR / 'usgs'
+    raw.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for code, (display, sheet) in USGS_COMMODITIES.items():
+        fname = f'ds140-{code}.xlsx'
+        path = raw / fname
+        # Download if missing
+        if not path.exists() or path.stat().st_size < 5_000:
+            url = f'{USGS_BASE}/ds140-{code}.xlsx'
+            try:
+                r = requests.get(url, timeout=60)
+                r.raise_for_status()
+                path.write_bytes(r.content)
+            except Exception as e:
+                print(f"    [USGS] download failed {code}: {e}")
+                continue
+        try:
+            # Header is at row 4 (0-indexed) — rows 0-3 are title/notes
+            df = pd.read_excel(path, sheet_name=sheet, skiprows=4)
+        except Exception:
+            # Some sheets use a slightly different sheet name — fall back to first sheet
+            try:
+                df = pd.read_excel(path, skiprows=4)
+            except Exception as e:
+                print(f"    [USGS] parse failed {code}: {e}")
+                continue
+        # Year column normally named 'Year'. USGS footnote rows often have
+        # text like "2020e" — coerce to numeric and drop non-numeric rows.
+        if 'Year' not in df.columns:
+            continue
+        df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+        df = df[df['Year'].notna()].copy()
+        df['Year'] = df['Year'].astype(int)
+        df = df[(df['Year'] >= YEAR_START) & (df['Year'] <= YEAR_END)].copy()
+        cols = list(df.columns)
+
+        def find_col(substring):
+            """Case-insensitive substring match, whitespace-tolerant."""
+            substring_lc = substring.lower().strip()
+            for c in cols:
+                if isinstance(c, str) and substring_lc in c.lower().strip():
+                    return c
+            return None
+
+        for src_substr, label_part, unit in USGS_METRICS:
+            col = find_col(src_substr)
+            if col is None:
+                continue
+            for _, row in df.iterrows():
+                try:
+                    year = int(row['Year'])
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    v = float(row[col])
+                except (TypeError, ValueError):
+                    continue
+                if pd.isna(v):
+                    continue
+                indicator_label = f'US {display} {label_part} (USGS)'
+                rows.append({
+                    'source': 'USGS', 'iso3': 'USA', 'year': year,
+                    'indicator_code': 'USGS_' + code.upper() + '_' + label_part.replace(' ', '_').upper()[:30],
+                    'indicator_name': indicator_label,
+                    'category': 'Economy', 'unit': unit, 'value': v,
+                })
+        print(f"  {display}: {sum(1 for r in rows if r['indicator_name'].startswith(f'US {display}'))} obs")
+
+    df_out = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df_out.to_csv(RAW_DIR / 'usgs_minerals.csv', index=False)
+    print(f"  [USGS] Saved {len(df_out)} rows -> data/raw/usgs_minerals.csv")
+    return df_out
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -1681,5 +1812,6 @@ if __name__ == '__main__':
     fetch_fraser()
     fetch_wb_innovation()
     fetch_doing_business()
+    fetch_usgs()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")
