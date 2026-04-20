@@ -4422,6 +4422,7 @@ const INDUSTRY_ONTOLOGY = {
   mining: {
     name: 'Mining & Minerals',
     description: 'Forecast mineral production using energy inputs, trading-partner demand, and macro drivers.',
+    target_country: 'USA',
     required_sources: ['USGS','WB','Comtrade','WBInnov','Supply Chain','IEA'],
     target: {
       label: 'US Aluminum Apparent Consumption (USGS)',
@@ -4475,7 +4476,7 @@ function _industryMenuOutsideClick(e){
 function closeIndustryMenu(){
   const m = document.getElementById('industry-menu'); if (m) m.style.display = 'none';
 }
-function loadIndustryView(industry){
+async function loadIndustryView(industry){
   closeIndustryMenu();
   const o = INDUSTRY_ONTOLOGY[industry];
   if (!o) { alert('Industry not yet defined: ' + industry); return; }
@@ -4491,9 +4492,21 @@ function loadIndustryView(industry){
     if (changed) {
       _syncSrcCheckboxes();
       S._srcConn = null;
-      buildNodeList(); updateMeta(); renderNet(); _recomputeSrcVisibility();
     }
   }
+
+  // Force country-level view on the ontology's target country (USA for mining)
+  // so the hop engine uses the per-country correlation set. Under 'global'
+  // level, within-country edges are capped per country (~60), which frequently
+  // drops USGS-involved edges and leaves hop counts at 0.
+  const targetCountry = o.target_country || 'USA';
+  if (!S.countries.includes(targetCountry) || S.countries.length !== 1) {
+    S.countries = [targetCountry];
+  }
+  if (typeof setLevel === 'function' && S.level !== 'country') {
+    await setLevel('country');
+  }
+  if (typeof applyCountryChange === 'function') await applyCountryChange();
 
   // Build a list of every indicator label referenced in the ontology — these
   // are the "curated" nodes. The hybrid view shows these + their neighbours.
@@ -4551,19 +4564,32 @@ function _ontologyIndicatorExists(label){
 }
 function _populatePredictorFromOntology(o){
   if (typeof PRED === 'undefined') return;
-  // Give the graph a moment to re-render after source toggling, then find the
-  // target node and run predFromNode. Prefer USA (most curated picks are US).
+  // Give the graph a moment to re-render after country/level switching.
+  // Node shape differs between levels:
+  //   - global mode:   id='ISO3::label', label='bare label'
+  //   - country-single: id='bare label', no .label property
+  //   - country-multi:  id='ISO3::label', label='bare label'
+  // So we match by tolerating either prefixed or bare id.
   setTimeout(() => {
-    const iso3 = S.countries[0] || 'USA';
-    const target = (S.gNodes || []).find(n =>
-      (n.label || '') === o.target.label && (n.id || '').startsWith(iso3));
+    const iso3 = o.target_country || S.countries[0] || 'USA';
+    const wanted = o.target.label;
+    const target = (S.gNodes || []).find(n => {
+      const idLabel = (n.label) || (n.id || '').replace(/^[A-Z]{3}::/, '');
+      return idLabel === wanted;
+    });
     if (!target) {
-      console.warn('[industry] target not found in rendered graph:', o.target.label);
+      console.warn('[industry] target not found in rendered graph:', wanted,
+                    '— S.gNodes sample:', (S.gNodes||[]).slice(0,3).map(n=>n.id||n.label));
       return;
     }
+    // Ensure the node has the fields selectNode/showNodeDetail expect. The
+    // country-single branch of getNodes returns bare node_meta entries which
+    // lack .label and .country; synthesise them so the detail panel renders.
+    if (!target.label) target.label = target.id;
+    if (!target.country) target.country = iso3;
     selectNode(target);
-    setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 200);
-  }, 500);
+    setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 300);
+  }, 700);
 }
 
 </script>
