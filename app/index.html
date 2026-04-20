@@ -495,7 +495,6 @@ tr.hi td{color:var(--tx);}
             <div class="src-row" data-src="WB" onclick="toggleSrc('WB')"><div class="src-chk" id="sc-WB"></div>World Bank (Economic)</div>
             <div class="src-row" data-src="IMF" onclick="toggleSrc('IMF')"><div class="src-chk" id="sc-IMF"></div>IMF (Sovereign Debt)</div>
             <div class="src-row" data-src="Damodaran" onclick="toggleSrc('Damodaran')"><div class="src-chk" id="sc-Damodaran"></div>Damodaran (Capital Markets)</div>
-            <div class="src-row" data-src="Heritage" onclick="toggleSrc('Heritage')"><div class="src-chk" id="sc-Heritage"></div>Heritage (Economic Freedom)</div>
             <div class="src-row" data-src="Fraser" onclick="toggleSrc('Fraser')"><div class="src-chk" id="sc-Fraser"></div>Fraser (Economic Freedom)</div>
             <div class="src-row" data-src="WBInnov" onclick="toggleSrc('WBInnov')"><div class="src-chk" id="sc-WBInnov"></div>WB Innovation (R&amp;D, Patents)</div>
             <div class="src-row" data-src="DoingBusiness" onclick="toggleSrc('DoingBusiness')"><div class="src-chk" id="sc-DoingBusiness"></div>WB Doing Business (Business Env)</div>
@@ -941,8 +940,6 @@ const SUBCAT_RULES=[
   {m:'Median EV/EBITDA',sub:'Capital Markets'},
   {m:'Median Dividend Yield',sub:'Capital Markets'},
   {m:'Number of listed firms',sub:'Capital Markets'},
-  // Heritage — Economic Freedom (under Economy)
-  {m:'Heritage ',sub:'Economic Freedom'},
   // Fraser — Economic Freedom (under Economy)
   {m:'Fraser EFW',sub:'Economic Freedom'},
   // WB Innovation (R&D, patents) — under Economy
@@ -1486,7 +1483,6 @@ function getActiveCats(){
     'Supply Chain':  ['Trade'],
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
-    'Heritage':      ['Economy'],
     'Fraser':        ['Economy'],
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
@@ -1522,7 +1518,7 @@ function toggleSrcDomain(d){
 }
 // ── SOURCE PICKER: reset to all-on visible state ──
 function resetSrcPicker(){
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness'];
   S.sources=new Set(all);
   document.querySelectorAll('.src-row[data-src]').forEach(r=>r.classList.remove('hide','dim'));
   _syncSrcCheckboxes();
@@ -1562,7 +1558,7 @@ function _buildSrcConnMap(){
 // ── SOURCE PICKER: hide rows that have no edges connecting to any selected source ──
 function _recomputeSrcVisibility(){
   const map=_buildSrcConnMap();
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Heritage'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness'];
   // If nothing selected, show everything
   if(S.sources.size===0){
     all.forEach(s=>{const r=document.querySelector(`.src-row[data-src="${s}"]`); if(r){r.classList.remove('hide','dim');}});
@@ -1978,7 +1974,6 @@ function buildNodeList(){
     'Supply Chain':  ['Trade'],
     'UNCTAD':        ['Trade'],
     'Damodaran':     ['Economy'],
-    'Heritage':      ['Economy'],
     'Fraser':        ['Economy'],
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
