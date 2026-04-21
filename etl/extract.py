@@ -1790,6 +1790,210 @@ def fetch_usgs():
     return df_out
 
 
+# ── BGS — British Geological Survey World Mineral Statistics ──
+# Global counterpart to USGS: production data by country for ~70 mineral
+# commodities. Public OGC API at ogcapi.bgs.ac.uk with country-filtered,
+# commodity-filtered queries. Annual 1970-2022 depending on commodity.
+BGS_API = 'https://ogcapi.bgs.ac.uk/collections/world-mineral-statistics/items'
+# (api_commodity_name, sub_commodity_filter, display_name) — sub_commodity
+# is optional but lets us get the 'primary metal' figure for refined metals.
+BGS_COMMODITIES = [
+    ('Aluminium', 'Primary metal', 'Aluminum Production'),
+    ('Copper',    'Mine',          'Copper Mine Production'),
+    ('Copper',    'Refined metal', 'Copper Refined Production'),
+    ('Zinc',      'Mine',          'Zinc Mine Production'),
+    ('Zinc',      'Primary metal', 'Zinc Primary Metal'),
+    ('Lead',      'Mine',          'Lead Mine Production'),
+    ('Nickel',    'Mine',          'Nickel Mine Production'),
+    ('Tin',       'Mine',          'Tin Mine Production'),
+    ('Gold',      'Mine',          'Gold Mine Production'),
+    ('Silver',    'Mine',          'Silver Mine Production'),
+    ('Iron ore',   None,           'Iron Ore Production'),
+    ('Steel, crude', None,         'Crude Steel Production'),
+    ('Bauxite',    None,           'Bauxite Production'),
+    ('Cobalt',     None,           'Cobalt Production'),
+    ('Lithium',    None,           'Lithium Production'),
+    ('Manganese',  None,           'Manganese Production'),
+    ('Chromium',   None,           'Chromium Production'),
+]
+
+def fetch_bgs():
+    """BGS World Mineral Statistics via OGC API — production by country."""
+    print("\n[BGS] Fetching global mineral production...")
+    rows = []
+    iso2_by_iso3 = {'USA':'US','KEN':'KE','BRA':'BR','DEU':'DE','CHN':'CN',
+                    'RUS':'RU','SGP':'SG','IND':'IN','JPN':'JP','IDN':'ID'}
+    for iso3, iso2 in iso2_by_iso3.items():
+        for commodity, sub, display in BGS_COMMODITIES:
+            params = {
+                'f': 'json',
+                'limit': 200,
+                'country_iso3_code': iso3,
+                'erml_commodity': commodity,
+                'bgs_statistic_type_trans': 'Production',
+            }
+            if sub:
+                params['erml_sub_commodity'] = sub
+            try:
+                r = requests.get(BGS_API, params=params, timeout=30)
+                if r.status_code != 200:
+                    continue
+                d = r.json()
+                before = len(rows)
+                for f in d.get('features', []):
+                    p = f.get('properties', {}) or {}
+                    year_str = p.get('year') or ''
+                    try:
+                        year = int(str(year_str)[:4])
+                    except (ValueError, TypeError):
+                        continue
+                    if year < YEAR_START or year > YEAR_END:
+                        continue
+                    q = p.get('quantity')
+                    try:
+                        q = float(q)
+                    except (TypeError, ValueError):
+                        continue
+                    if q <= 0:
+                        continue
+                    unit = p.get('units') or 'tonnes'
+                    label = f'{display} (BGS)'
+                    rows.append({
+                        'source': 'BGS', 'iso3': iso3, 'year': year,
+                        'indicator_code': 'BGS_' + display.replace(' ', '_').upper()[:40],
+                        'indicator_name': label,
+                        'category': 'Economy', 'unit': unit, 'value': q,
+                    })
+                time.sleep(0.15)
+            except Exception as e:
+                print(f"    [BGS] {iso3}/{commodity}: {e}")
+        print(f"  {iso3}: {sum(1 for r in rows if r['iso3']==iso3)} obs")
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df.to_csv(RAW_DIR / 'bgs_minerals.csv', index=False)
+    print(f"  [BGS] Saved {len(df)} rows -> data/raw/bgs_minerals.csv")
+    return df
+
+
+# ── World Bank Pink Sheets — global commodity prices ──
+# Monthly spot prices for 70+ commodities, 1960-present. We aggregate to
+# annual means and attach to EVERY country (same global price for all) so
+# each country's subgraph can correlate domestic indicators with global
+# price movements.
+PINK_URL = 'https://thedocs.worldbank.org/en/doc/5d903e848db1d1b83e0ec8f744e55570-0350012021/related/CMO-Historical-Data-Monthly.xlsx'
+# Column-name substrings we care about (mineral/metal focused)
+PINK_COMMODITIES = [
+    'Aluminum', 'Copper', 'Iron ore', 'Lead', 'Nickel', 'Tin', 'Zinc',
+    'Gold', 'Silver', 'Platinum',
+    'Crude oil, average', 'Natural gas, US', 'Coal, Australian',
+]
+
+def fetch_pink_sheets():
+    """World Bank Pink Sheet commodity prices — annual averages from monthly data."""
+    print("\n[Pink Sheets] Fetching WB commodity prices...")
+    raw = RAW_DIR / 'wb_pinksheets'
+    raw.mkdir(parents=True, exist_ok=True)
+    path = raw / 'CMO-Monthly.xlsx'
+    if not path.exists() or path.stat().st_size < 50_000:
+        try:
+            r = requests.get(PINK_URL, timeout=120)
+            r.raise_for_status()
+            path.write_bytes(r.content)
+            print(f"  Downloaded Pink Sheets ({len(r.content)//1024} KB)")
+        except Exception as e:
+            print(f"    [Pink] download failed: {e}")
+            df = pd.DataFrame(columns=['source','iso3','year','indicator_code',
+                                        'indicator_name','category','unit','value'])
+            df.to_csv(RAW_DIR / 'wb_pink_sheets.csv', index=False)
+            return df
+
+    rows = []
+    try:
+        # Commodity names are at row 4 (0-indexed), units at row 5, data from row 6
+        full = pd.read_excel(path, sheet_name='Monthly Prices', header=None)
+        cols_row = full.iloc[4].tolist()
+        units_row = full.iloc[5].tolist()
+        data = full.iloc[6:].copy()
+        data.columns = [str(c) for c in cols_row]
+        # First column is date like '1960M01'
+        date_col = data.columns[0]
+
+        # Build a year column from the YYYYMmm strings
+        def parse_year(s):
+            s = str(s)
+            if len(s) >= 4 and s[:4].isdigit():
+                return int(s[:4])
+            return None
+        data['__year'] = data[date_col].apply(parse_year)
+        data = data[data['__year'].notna() & (data['__year'] >= YEAR_START) & (data['__year'] <= YEAR_END)]
+
+        # For each target commodity, find the matching column and compute annual mean
+        for commodity in PINK_COMMODITIES:
+            col_idx = None
+            for i, c in enumerate(cols_row):
+                if isinstance(c, str) and commodity.lower() in c.lower():
+                    col_idx = i; break
+            if col_idx is None:
+                continue
+            col_name = cols_row[col_idx]
+            unit = units_row[col_idx] if col_idx < len(units_row) else ''
+            series = pd.to_numeric(data[col_name], errors='coerce')
+            annual = data.assign(v=series).groupby('__year')['v'].mean().dropna()
+            label = f'Global Price: {commodity} (Pink Sheets)'
+            code = 'PINK_' + commodity.replace(' ', '_').replace(',','').upper()[:40]
+            for year, v in annual.items():
+                # Attach the same global price to EVERY tracked country so each
+                # country's subgraph can correlate domestic indicators with price
+                for iso3 in COUNTRIES:
+                    rows.append({
+                        'source': 'PinkSheets', 'iso3': iso3, 'year': int(year),
+                        'indicator_code': code,
+                        'indicator_name': label,
+                        'category': 'Economy', 'unit': str(unit), 'value': float(v),
+                    })
+    except Exception as e:
+        print(f"    [Pink] parse failed: {e}")
+
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df.to_csv(RAW_DIR / 'wb_pink_sheets.csv', index=False)
+    print(f"  [Pink Sheets] Saved {len(df)} rows -> data/raw/wb_pink_sheets.csv")
+    return df
+
+
+# ── UN Comtrade HS-coded mineral/metal trade (via WB redistribution) ──
+# Specific metal/ore trade aggregates from the WB's redistribution of UN
+# Comtrade data. Broader HS-level granularity would need direct Comtrade API
+# access (rate-limited, auth-required), so we use WB's curated metals
+# aggregates which are annual, free, and cover all 10 countries.
+COMTRADE_HS_INDICATORS = {
+    'TX.VAL.MMTL.ZS.UN':  ('Ores and metals exports (% of merchandise exports)', 'Economy', '%'),
+    'TM.VAL.MMTL.ZS.UN':  ('Ores and metals imports (% of merchandise imports)', 'Economy', '%'),
+    'TX.VAL.MANF.ZS.UN':  ('Manufactures exports (% of merchandise exports)',     'Economy', '%'),
+    'TM.VAL.MANF.ZS.UN':  ('Manufactures imports (% of merchandise imports)',     'Economy', '%'),
+    'TX.VAL.FOOD.ZS.UN':  ('Food exports (% of merchandise exports)',             'Economy', '%'),
+    'TM.VAL.FOOD.ZS.UN':  ('Food imports (% of merchandise imports)',             'Economy', '%'),
+    'TX.VAL.FUEL.ZS.UN':  ('Fuel exports (% of merchandise exports)',             'Economy', '%'),
+    'TM.VAL.FUEL.ZS.UN':  ('Fuel imports (% of merchandise imports)',             'Economy', '%'),
+}
+
+def fetch_comtrade_hs():
+    print("\n[Comtrade HS] Fetching mineral/metal/manufactures trade aggregates...")
+    rows = []
+    for code, (name, cat, unit) in COMTRADE_HS_INDICATORS.items():
+        before = len(rows)
+        _wb_fetch_indicator(code, 'CTHS', 'ComtradeHS', name, cat, unit, rows)
+        print(f"  {code}: {len(rows) - before} obs")
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df.to_csv(RAW_DIR / 'comtrade_hs.csv', index=False)
+    print(f"  [Comtrade HS] Saved {len(df)} rows -> data/raw/comtrade_hs.csv")
+    return df
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -1813,5 +2017,8 @@ if __name__ == '__main__':
     fetch_wb_innovation()
     fetch_doing_business()
     fetch_usgs()
+    fetch_bgs()
+    fetch_pink_sheets()
+    fetch_comtrade_hs()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")

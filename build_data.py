@@ -101,6 +101,9 @@ def _infer_source(code):
     if code.startswith('WBINNOV'): return 'WBInnov'
     if code.startswith('DB_'):    return 'DoingBusiness'
     if code.startswith('USGS'):   return 'USGS'
+    if code.startswith('BGS'):    return 'BGS'
+    if code.startswith('PINK'):   return 'PinkSheets'
+    if code.startswith('CTHS'):   return 'ComtradeHS'
     return 'WB'
 
 # Pull unique indicator→source map from db
@@ -752,7 +755,7 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                 # sub-scores all co-vary by construction). Same-source pairs
                 # in these sources are treated as near-duplicates (bit 0) so
                 # Balanced mode hides them by default.
-                _TIGHT_DOMAIN = {'Damodaran', 'Fraser', 'DoingBusiness'}
+                _TIGHT_DOMAIN = {'Damodaran', 'Fraser', 'DoingBusiness', 'BGS', 'USGS'}
                 src_a = IND_SOURCE.get(a, 'WB')
                 src_b = IND_SOURCE.get(b, 'WB')
                 _q_bits = 0
@@ -916,7 +919,7 @@ for iso_a, iso_b in combinations(COUNTRIES, 2):
             # Flag different indicators from the SAME source in the same category
             # across countries — these share global development trends.
             # See within-country block for q bitfield semantics (bit 0 = dup, bit 1 = ssc).
-            _TIGHT_DOMAIN_XC = {'Damodaran', 'Fraser', 'DoingBusiness'}
+            _TIGHT_DOMAIN_XC = {'Damodaran', 'Fraser', 'DoingBusiness', 'BGS', 'USGS'}
             src_a = IND_SOURCE.get(ind_a, 'WB')
             src_b = IND_SOURCE.get(ind_b, 'WB')
             _xc_q = 0

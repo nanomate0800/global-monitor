@@ -708,6 +708,9 @@ tr.hi td{color:var(--tx);}
             <div class="src-row" data-src="WBInnov" onclick="toggleSrc('WBInnov')"><div class="src-chk" id="sc-WBInnov"></div>WB Innovation (R&amp;D, Patents)</div>
             <div class="src-row" data-src="DoingBusiness" onclick="toggleSrc('DoingBusiness')"><div class="src-chk" id="sc-DoingBusiness"></div>WB Doing Business (Business Env)</div>
             <div class="src-row" data-src="USGS" onclick="toggleSrc('USGS')"><div class="src-chk" id="sc-USGS"></div>USGS (US Minerals Commodities)</div>
+            <div class="src-row" data-src="BGS" onclick="toggleSrc('BGS')"><div class="src-chk" id="sc-BGS"></div>BGS (Global Mineral Production)</div>
+            <div class="src-row" data-src="PinkSheets" onclick="toggleSrc('PinkSheets')"><div class="src-chk" id="sc-PinkSheets"></div>WB Pink Sheets (Commodity Prices)</div>
+            <div class="src-row" data-src="ComtradeHS" onclick="toggleSrc('ComtradeHS')"><div class="src-chk" id="sc-ComtradeHS"></div>Comtrade HS (Trade by Commodity)</div>
           </div>
         </div>
         <div class="src-domain">
@@ -1157,8 +1160,19 @@ const SUBCAT_RULES=[
   {m:'Patent applications',sub:'Innovation'},
   {m:'Scientific',sub:'Innovation'},
   {m:'Researchers in R&D',sub:'Innovation'},
-  // USGS — Mining & Minerals (under Economy)
+  // USGS / BGS — Mining & Minerals (under Economy)
   {m:'(USGS)',sub:'Mining & Minerals'},
+  {m:'(BGS)', sub:'Mining & Minerals'},
+  // Pink Sheets — Commodity Prices (under Economy)
+  {m:'Global Price:',sub:'Commodity Prices'},
+  // Comtrade HS — Commodity Trade (under Economy)
+  {m:'Ores and metals',sub:'Commodity Trade'},
+  {m:'Manufactures exports',sub:'Commodity Trade'},
+  {m:'Manufactures imports',sub:'Commodity Trade'},
+  {m:'Food exports',sub:'Commodity Trade'},
+  {m:'Food imports',sub:'Commodity Trade'},
+  {m:'Fuel exports',sub:'Commodity Trade'},
+  {m:'Fuel imports',sub:'Commodity Trade'},
   // WB Doing Business — under Economy
   {m:'DB Ease',sub:'Business Environment'},
   {m:'DB Starting',sub:'Business Environment'},
@@ -1699,6 +1713,9 @@ function getActiveCats(){
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
     'USGS':          ['Economy'],
+    'BGS':           ['Economy'],
+    'PinkSheets':    ['Economy'],
+    'ComtradeHS':    ['Economy'],
   };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
@@ -1731,7 +1748,7 @@ function toggleSrcDomain(d){
 }
 // ── SOURCE PICKER: reset to all-on visible state ──
 function resetSrcPicker(){
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS'];
   S.sources=new Set(all);
   document.querySelectorAll('.src-row[data-src]').forEach(r=>r.classList.remove('hide','dim'));
   _syncSrcCheckboxes();
@@ -1771,7 +1788,7 @@ function _buildSrcConnMap(){
 // ── SOURCE PICKER: hide rows that have no edges connecting to any selected source ──
 function _recomputeSrcVisibility(){
   const map=_buildSrcConnMap();
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS'];
   // If nothing selected, show everything
   if(S.sources.size===0){
     all.forEach(s=>{const r=document.querySelector(`.src-row[data-src="${s}"]`); if(r){r.classList.remove('hide','dim');}});
@@ -2191,6 +2208,9 @@ function buildNodeList(){
     'WBInnov':       ['Economy'],
     'DoingBusiness': ['Economy'],
     'USGS':          ['Economy'],
+    'BGS':           ['Economy'],
+    'PinkSheets':    ['Economy'],
+    'ComtradeHS':    ['Economy'],
   };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
@@ -4219,90 +4239,109 @@ const TUTORIAL = {
 const TUTORIAL_STEPS = [
   {
     title: 'Welcome to Global Monitor',
-    body: 'This walkthrough will show you how to forecast <b>US mineral production</b>. You\u2019ll pick datasets, set filters, find an indicator, and run a prediction. About 2 minutes.',
+    body: 'Scenario: a consultant is advising a US aluminum producer. They need to know if <b>global demand for aluminum</b> will hold up or decline over the next 5 years. This walkthrough shows how to answer that using data from 4 sources. About 3 minutes.',
     target: null,
     side: 'center',
   },
   {
-    title: 'Step 1 — Pick a country',
-    body: 'This is the country picker. The scenario is US-focused so we\u2019re starting with United States already selected. In normal use, click here to change countries or multi-select.',
+    title: 'Step 1 — Focus on the United States',
+    body: 'Our analysis centres on the US because it\u2019s one of the world\u2019s largest aluminum consumers. The country picker is here; you can single-select USA or add others for cross-country views.',
     target: () => document.getElementById('country-selector-btn') || document.getElementById('country-label')?.parentElement,
     side: 'bottom',
   },
   {
-    title: 'Step 2 — Turn on the relevant data sources',
-    body: 'We\u2019ll enable <b>USGS (US Minerals)</b>, <b>Comtrade</b> (global trade), <b>IEA</b> (energy) and <b>WB Innovation</b>. Watch the checkboxes flip.',
+    title: 'Step 2 — Turn on four mineral data sources',
+    body: 'We\u2019ll enable <b>USGS</b> (US mineral production/consumption), <b>BGS</b> (global mineral production by country), <b>Pink Sheets</b> (global commodity prices), and <b>Comtrade HS</b> (ores/metals trade flows). Together they give us a 360\u00b0 view of the aluminum market.',
     target: () => document.getElementById('src-panel'),
     side: 'right',
     action: () => {
-      ['USGS','Comtrade','IEA','WBInnov'].forEach(s => { if (!S.sources.has(s)) toggleSrc(s); });
+      ['USGS','BGS','PinkSheets','ComtradeHS','WB','Comtrade'].forEach(s => { if (!S.sources.has(s)) toggleSrc(s); });
     },
   },
   {
-    title: 'Step 3 — Correlation strength filter',
-    body: 'Drag the <b>|r| Range</b> sliders to hide weak correlations. Higher minimum = only strong relationships. We\u2019ll leave it at 0.00\u20131.00 for this scenario.',
+    title: 'Step 3 — Strength filter',
+    body: 'The <b>|r| Range</b> sliders filter out weak correlations. Default 0.00\u20131.00 shows everything. Raising the minimum to 0.5 would hide noise-level relationships. Leave it wide for now to see the full network.',
     target: () => document.getElementById('thr-min')?.parentElement?.parentElement,
     side: 'right',
   },
   {
-    title: 'Step 4 — Confidence tier (optional)',
-    body: 'When turned on, these four pills filter edges by strength quartile. DEFINITIVE shows only the top 25%. Off by default; leave it off for this tutorial.',
+    title: 'Step 4 — Confidence tier',
+    body: 'These four pills let you filter by strength quartile. DEFINITIVE = top 25%. The tiers are opt-in (toggle OFF by default), and useful when you want to see only the most trustworthy correlations. Leave off for this tour.',
     target: () => document.getElementById('conf-enable-btn')?.parentElement,
     side: 'right',
   },
   {
-    title: 'Step 5 — Redundant-correlation filter',
-    body: 'BALANCED (default) hides obvious near-duplicate pairs. STRICT also hides same-source co-trending pairs. OFF shows everything. We\u2019ll stick with BALANCED.',
+    title: 'Step 5 — Hide redundant correlations',
+    body: 'BALANCED (default) hides near-duplicate metrics (e.g. WB life-expectancy vs UNDP life-expectancy). STRICT also hides same-source co-trending pairs. OFF shows everything. BALANCED is the right default.',
     target: () => document.getElementById('dq-balanced')?.parentElement,
     side: 'right',
   },
   {
-    title: 'Step 6 — Find the indicator',
-    body: 'Type in the search box to find an indicator. Let\u2019s search for <b>"aluminum"</b> (we\u2019re watching USGS US aluminum data).',
+    title: 'Step 6 — Find aluminum',
+    body: 'Use search to locate the target indicator. We\u2019re looking at <b>US Aluminum Apparent Consumption</b> — the single best proxy for US aluminum demand (production + imports \u2212 exports).',
     target: () => document.querySelector('input[placeholder*="Search"]'),
     side: 'right',
     action: () => {
       const box = document.querySelector('input[placeholder*="Search"]');
       if (box) {
-        box.value = 'aluminum';
+        box.value = 'aluminum apparent';
         box.dispatchEvent(new Event('input', { bubbles: true }));
       }
     },
   },
   {
-    title: 'Step 7 — Pick a mineral indicator',
-    body: 'Click any node in the tree to select it. For this scenario we\u2019ll select <b>US Aluminum Primary Production (USGS)</b> — the key mining-output metric.',
+    title: 'Step 7 — Select the target node',
+    body: 'The indicator tree on the left now shows aluminum-related nodes. We\u2019ll select <b>US Aluminum Apparent Consumption</b>. This becomes the centre of our analysis.',
     target: () => document.getElementById('ntree'),
     side: 'right',
     action: () => {
-      const target = (S.gNodes || []).find(n => (n.label || '').includes('Aluminum') && (n.label || '').includes('Primary') && (n.id || '').startsWith('USA'));
-      if (target) selectNode(target);
+      // Force country-level USA so USGS edges are visible
+      if (!S.countries.includes('USA') || S.countries.length !== 1) {
+        S.countries = ['USA'];
+      }
+      if (S.level !== 'country') {
+        if (typeof setLevel === 'function') setLevel('country').then(() => {
+          if (typeof applyCountryChange === 'function') applyCountryChange().then(() => {
+            setTimeout(() => {
+              const t = (S.gNodes || []).find(n => {
+                const l = n.label || (n.id || '').replace(/^[A-Z]{3}::/,'');
+                return l === 'US Aluminum Apparent Consumption (USGS)';
+              });
+              if (t) { if (!t.label) t.label = t.id; if (!t.country) t.country = 'USA'; selectNode(t); }
+            }, 500);
+          });
+        });
+      } else {
+        const t = (S.gNodes || []).find(n => {
+          const l = n.label || (n.id || '').replace(/^[A-Z]{3}::/,'');
+          return l === 'US Aluminum Apparent Consumption (USGS)';
+        });
+        if (t) { if (!t.label) t.label = t.id; if (!t.country) t.country = 'USA'; selectNode(t); }
+      }
     },
   },
   {
-    title: 'Step 8 — Review the connections',
-    body: 'The right panel now shows all indicators correlated with the selected node. Each row shows the other indicator, correlation value, strength tier and stability.',
+    title: 'Step 8 — Read the correlations',
+    body: 'The right panel lists every indicator correlated with aluminum consumption. Expect to see: other minerals (copper, zinc), global aluminum price, Chinese production, macro drivers. Each row gives r-value, strength tier, and stability.',
     target: () => document.getElementById('nd-conns'),
     side: 'left',
   },
   {
-    title: 'Step 9 — Run the Predictor',
-    body: 'Click <b>PREDICT THIS</b> to auto-populate the predictor with the selected node as output and its top hop-1 neighbours as inputs.',
+    title: 'Step 9 — Launch the Predictor',
+    body: 'Click <b>PREDICT THIS</b> \u2192 the selected node becomes the predictor\u2019s output, and its top hop-1 neighbours auto-populate as inputs. You can add/remove inputs before running.',
     target: () => document.getElementById('nd-predict-btn'),
     side: 'left',
-    action: () => {
-      if (typeof predFromNode === 'function') predFromNode();
-    },
+    action: () => { if (typeof predFromNode === 'function') predFromNode(); },
   },
   {
-    title: 'Step 10 — Set the forecast horizon',
-    body: 'Choose how many years ahead to forecast. 3yr is a good medium-term horizon. Then click RUN — the model returns a prediction with uncertainty bounds.',
+    title: 'Step 10 — Forecast horizon & run',
+    body: 'Choose the forecast horizon (1yr / 3yr / 5yr). 3yr is a good medium-term decision window. Click RUN \u2014 the model trains on historical relationships and returns a projection with uncertainty bounds.',
     target: () => document.querySelector('.pd-hbtn, [id*="horizon"]') || document.getElementById('pgtab-predictor'),
     side: 'left',
   },
   {
     title: 'Well done!',
-    body: 'You\u2019ve just forecasted US aluminum production. The same flow works for any indicator. Click <b>HOW-TO</b> any time to see this again. Happy exploring.',
+    body: 'You\u2019ve just forecasted US aluminum demand using 4 independent mineral data sources. The same workflow works for any commodity, country, or sector. Click <b>HOW-TO</b> anytime to repeat.',
     target: null,
     side: 'center',
   },
@@ -4421,29 +4460,30 @@ function _positionBubble(bb, targetRect, side){
 const INDUSTRY_ONTOLOGY = {
   mining: {
     name: 'Mining & Minerals',
-    description: 'Forecast mineral production using energy inputs, trading-partner demand, and macro drivers.',
+    description: 'Forecast aluminum demand using US consumption, global production (BGS), global commodity prices (Pink Sheets), and trade flows (Comtrade HS).',
     target_country: 'USA',
-    required_sources: ['USGS','WB','Comtrade','WBInnov','Supply Chain','IEA'],
+    required_sources: ['USGS','BGS','PinkSheets','ComtradeHS','WB','Comtrade','WBInnov','Supply Chain','IEA'],
     target: {
       label: 'US Aluminum Apparent Consumption (USGS)',
-      rationale: 'Apparent consumption = production + imports − exports ± stocks. The cleanest single proxy for US mineral market demand.'
+      rationale: 'Apparent consumption = production + imports \u2212 exports \u00b1 stocks. The cleanest single proxy for US aluminum market demand.'
     },
     hop_1_direct_inputs: [
       { label: 'US Aluminum Primary Production (USGS)',    rationale: 'Domestic extraction supplies demand before imports.' },
-      { label: 'US Copper Primary Production (USGS)',      rationale: 'Copper production co-moves with aluminum via shared mining sector.' },
-      { label: 'Electricity from coal (% of total)',       rationale: 'Smelting is energy-intensive; coal is the historic industrial baseload.' },
-      { label: 'Employment in industry (% of total)',      rationale: 'Industrial labour supply \u2014 direct input to mining/smelting.' },
-      { label: 'US Aluminum Net Import Reliance (USGS)',   rationale: 'Share of consumption covered by imports vs domestic production.' },
+      { label: 'Aluminum Production (BGS)',                rationale: 'Global aluminum output (China, India, Russia\u2026) — the biggest driver of available supply and price.' },
+      { label: 'Global Price: Aluminum (Pink Sheets)',     rationale: 'World market price \u2014 when price rises, US demand typically slows.' },
+      { label: 'US Aluminum Net Import Reliance (USGS)',   rationale: 'Share of US consumption covered by imports vs domestic production.' },
+      { label: 'Ores and metals imports (% of merchandise imports)', rationale: 'US dependence on foreign metal supply (Comtrade HS).' },
     ],
     hop_2_demand_drivers: [
-      { label: 'Imports of goods and services (% of GDP)', rationale: 'Trading-partner demand proxy \u2014 China and Japan import US metals.' },
-      { label: 'GDP growth rate (annual %)',               rationale: 'Macro growth drives construction/auto/electrical demand for metals.' },
+      { label: 'Global Price: Copper (Pink Sheets)',       rationale: 'Copper is aluminum\u2019s main substitute (wiring, construction). Price spread affects demand.' },
+      { label: 'Ores and metals exports (% of merchandise exports)', rationale: 'US metal export orientation.' },
       { label: 'Container port throughput (TEU)',          rationale: 'Physical metal flows via containerised trade.' },
+      { label: 'GDP growth rate (annual %)',               rationale: 'Macro growth drives construction/auto/electrical demand for aluminum.' },
     ],
     hop_3_macro_drivers: [
-      { label: 'Official exchange rate (LCU per USD)',     rationale: 'Commodities are USD-denominated; a strong dollar suppresses export demand.' },
-      { label: 'Trade (% of GDP)',                         rationale: 'Overall trade intensity \u2014 the channel commodities flow through.' },
-      { label: 'R&D expenditure (% of GDP)',               rationale: 'Substitute-material innovation (e.g. aluminum alternatives) affects long-run demand.' },
+      { label: 'Official exchange rate (LCU per USD)',     rationale: 'Aluminum is USD-denominated; strong dollar suppresses export demand.' },
+      { label: 'Global Price: Crude oil, average (Pink Sheets)', rationale: 'Energy cost baseline \u2014 aluminum smelting is extremely energy-intensive.' },
+      { label: 'R&D expenditure (% of GDP)',               rationale: 'Substitute-material innovation affects long-run aluminum demand.' },
     ],
   },
   // Additional industries follow the same schema — intentionally left for
@@ -4570,26 +4610,28 @@ function _populatePredictorFromOntology(o){
   //   - country-single: id='bare label', no .label property
   //   - country-multi:  id='ISO3::label', label='bare label'
   // So we match by tolerating either prefixed or bare id.
-  setTimeout(() => {
-    const iso3 = o.target_country || S.countries[0] || 'USA';
-    const wanted = o.target.label;
+  // Poll for the target to appear in the rendered graph — the larger the
+  // dataset, the longer renderNet() takes. We give it up to 3s and then
+  // bail gracefully if it never resolves.
+  const wanted = o.target.label;
+  const iso3 = o.target_country || S.countries[0] || 'USA';
+  let tries = 0;
+  const tryFind = () => {
     const target = (S.gNodes || []).find(n => {
       const idLabel = (n.label) || (n.id || '').replace(/^[A-Z]{3}::/, '');
       return idLabel === wanted;
     });
-    if (!target) {
-      console.warn('[industry] target not found in rendered graph:', wanted,
-                    '— S.gNodes sample:', (S.gNodes||[]).slice(0,3).map(n=>n.id||n.label));
+    if (target) {
+      if (!target.label) target.label = target.id;
+      if (!target.country) target.country = iso3;
+      selectNode(target);
+      setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 400);
       return;
     }
-    // Ensure the node has the fields selectNode/showNodeDetail expect. The
-    // country-single branch of getNodes returns bare node_meta entries which
-    // lack .label and .country; synthesise them so the detail panel renders.
-    if (!target.label) target.label = target.id;
-    if (!target.country) target.country = iso3;
-    selectNode(target);
-    setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 300);
-  }, 700);
+    if (++tries < 12) setTimeout(tryFind, 300);
+    else console.warn('[industry] target not found in graph after retries:', wanted);
+  };
+  setTimeout(tryFind, 400);
 }
 
 </script>
