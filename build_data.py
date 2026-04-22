@@ -756,19 +756,52 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                 # sub-scores all co-vary by construction). Same-source pairs
                 # in these sources are treated as near-duplicates (bit 0) so
                 # Balanced mode hides them by default.
-                _TIGHT_DOMAIN = {'Damodaran', 'Fraser', 'DoingBusiness', 'BGS', 'USGS'}
+                # Tight-domain sources: same-source same-category pairs are
+                # mathematically linked (Damodaran CRP/ERP/Default Spread,
+                # Fraser freedom sub-scores, DB sub-components). USGS/BGS are
+                # handled separately below — intra-source pairs across DIFFERENT
+                # commodities (US Gold ↔ US Lead) are allowed, but same-commodity
+                # pairs (US Aluminum Primary Production ↔ US Aluminum Apparent
+                # Consumption) are tight-flagged because consumption = production
+                # + imports − exports by construction.
+                _TIGHT_DOMAIN = {'Damodaran', 'Fraser', 'DoingBusiness'}
                 src_a = IND_SOURCE.get(a, 'WB')
                 src_b = IND_SOURCE.get(b, 'WB')
                 _q_bits = 0
                 if cat_a == cat_b and src_a == src_b and src_a not in ('WB',):
                     if src_a in _TIGHT_DOMAIN:
                         _q_bits |= 1  # bit 0 — Balanced filter
+                    elif src_a in ('USGS', 'BGS'):
+                        # Same-commodity pair detection: USGS labels like "US Aluminum
+                        # Primary Production (USGS)" start with "US <commodity>". If
+                        # both sides match the same US <commodity> prefix, they're
+                        # mathematically linked metrics of the same commodity.
+                        import re as _re
+                        _mA = _re.match(r'US (\w+)', a or '')
+                        _mB = _re.match(r'US (\w+)', b or '')
+                        if _mA and _mB and _mA.group(1) == _mB.group(1):
+                            _q_bits |= 1  # bit 0 — same-commodity pair
+                        else:
+                            _q_bits |= 2  # bit 1 — cross-commodity, Strict-only flag
                     else:
                         _q_bits |= 2  # bit 1 — Strict only
                 # Near-duplicate indicators (same metric, often cross-source)
                 al, bl = a.lower(), b.lower()
                 if _sim_indicator(al, bl):
                     _q_bits |= 1  # bit 0
+
+                # ── Commodity ↔ demography/health/social is usually spurious ──
+                # Specific commodities (gold production, aluminum imports,
+                # copper prices) have no plausible mechanism with death rate,
+                # life expectancy, age dependency, etc. — correlations come
+                # from parallel monotonic trends over 2000-2023. The whitelist
+                # above allows Economy↔{Demographic,Health,Social} to keep GDP
+                # correlations alive, so we need a source-level flag here.
+                _COMMODITY_SRCS = {'USGS', 'BGS', 'PinkSheets', 'ComtradeV2'}
+                _DEMO_CATS      = {'Demographic', 'Demographics', 'Health', 'Social'}
+                if (src_a in _COMMODITY_SRCS and cat_b in _DEMO_CATS) or \
+                   (src_b in _COMMODITY_SRCS and cat_a in _DEMO_CATS):
+                    _q_bits |= 1  # bit 0 — hidden by Balanced
 
             common = sorted(set(residuals[a]) & set(residuals[b]))
             n = len(common)
