@@ -550,6 +550,13 @@ tr.hi td{color:var(--tx);}
 #industry-panel .ind-target-sub { font-size: 7px; color: var(--ph); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 3px; }
 #industry-panel .ind-target-lbl { font-size: 11px; color: var(--tx); line-height: 1.3; margin-bottom: 3px; font-weight: 500; }
 #industry-panel .ind-target-ctx { font-size: 8px; color: var(--mu); }
+#industry-panel .ind-growth {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: .02em;
+}
 
 /* Correlated drivers — positive/negative colour coding */
 #industry-panel .ind-r { font-weight: 600; }
@@ -662,7 +669,6 @@ tr.hi td{color:var(--tx);}
     <div class="hmbtn on" id="m-explore" onclick="setMode('explore',this)"><div class="dot"></div>EXPLORE</div>
   </div>
   <div class="htoggle htoggle-industry" id="industry-btn" onclick="openIndustryMenu()" title="Open an industry-driven view (Mining, Health, Shipping, etc.)">INDUSTRY ▸</div>
-  <div class="htoggle htoggle-howto" id="howto-btn" onclick="startTutorial()" title="Guided walkthrough of the app">HOW-TO</div>
   <div class="htoggle" id="expand-toggle" onclick="toggleExpandRel()" title="Show connected indicators from other data sources (neighbour expansion)">EXP.RELATION</div>
   <div class="htoggle" onclick="globeResetView()" title="Re-centre globe">GLOBE</div>
   <div class="htoggle" id="texture-toggle" onclick="cycleGlobeTexture()" title="Cycle globe texture">TEXTURE: <span id="texture-label">DARK</span></div>
@@ -1913,13 +1919,19 @@ function getCtrd(){
 function populateYearWindowSelect(){
   const sel = document.getElementById('year-window-select'); if (!sel) return;
   const wins = S.meta?.year_windows || [[2000,2023]];
-  sel.innerHTML = wins.map(([s,e]) => {
-    const isFC = e > 2023;
-    const label = isFC ? `${s}\u2013${e} (forecast)` : `${s}\u2013${e}`;
+  // Group into observed vs forecast with a dividing label so users
+  // understand when the correlation model leaves observed data (max 2023
+  // for most sources, 2015 for USGS) and starts using ARIMA projections.
+  const observed = wins.filter(([s,e]) => e <= 2023);
+  const forecast = wins.filter(([s,e]) => e > 2023);
+  const mkOpts = arr => arr.map(([s,e]) => {
+    const label = `${s}\u2013${e}`;
     const val = `${s}_${e}`;
     const selAttr = (s === S.yS && e === S.yE) ? 'selected' : '';
     return `<option value="${val}" ${selAttr}>${label}</option>`;
   }).join('');
+  sel.innerHTML = (observed.length ? `<optgroup label="Observed (data \u2264 2023)">${mkOpts(observed)}</optgroup>` : '')
+                + (forecast.length ? `<optgroup label="Forecast (ARIMA projected)">${mkOpts(forecast)}</optgroup>` : '');
 }
 
 async function onYearWindowSelect(val){
@@ -2973,13 +2985,17 @@ function renderNet(){
   // Country flag/abbreviation inside node — show whenever multiple countries' nodes coexist
   const showCountry=(S.level==='global'||S.level==='cross'||(S.level==='country'&&S.countries.length>1));
   if(showCountry&&S.showFlags){
+    // Flags shrunk to 8x6 (was 11x8) + opacity 0.55 (was 0.85) so they sit
+    // subtly inside the node circle rather than overpowering the node + label.
+    // Previous sizes obscured the node outline and made the network look
+    // like a grid of flags instead of an indicator graph.
     nSel.append('image')
       .attr('href',d=>{const iso2=ISO3_TO_ISO2[d.country];return iso2?`https://flagcdn.com/w20/${iso2}.png`:''})
-      .attr('width',11).attr('height',8)
-      .attr('x',-5.5).attr('y',-7)
+      .attr('width',8).attr('height',6)
+      .attr('x',-4).attr('y',-8)
       .attr('preserveAspectRatio','xMidYMid meet')
       .attr('pointer-events','none')
-      .attr('opacity',d=>{if(selId)return d.id===selId?1:connSel?.has(d.id)?.7:0;return.85;});
+      .attr('opacity',d=>{if(selId)return d.id===selId?.9:connSel?.has(d.id)?.55:0;return.55;});
     nSel.append('text')
       .attr('text-anchor','middle').attr('y',7)
       .attr('font-family','DM Mono,monospace').attr('font-size',6)
@@ -4002,19 +4018,52 @@ async function predRun(){
   const m2=_ridgeReg(X2,outArr,lam);
   const fittedOut=commonYrs.map((_,i)=>m2.intercept+m2.beta.reduce((s,b,k)=>s+b*X2[i][k],0));
 
-  // Forecast: AR(1) extrapolate inputs, THEN apply multiplier (what-if scenario)
-  const inpFcArrs=inps.map(x=>{const raw=_ar1Fc(x.ser.map(p=>p.v),h);return x.mult===1.0||x.mult==null?raw:raw.map(v=>v*x.mult);});
-  const midFcArrs=mids.length>0&&inps.length>0
-    ?stage1.map((m,mi)=>Array.from({length:h},(_,hi)=>m.intercept+m.beta.reduce((s,b,k)=>s+b*inpFcArrs[k][hi],0)))
-    :mids.map(x=>_ar1Fc(x.ser.map(p=>p.v),h));
-  const fcX2=Array.from({length:h},(_,hi)=>mids.length>0
-    ?mids.map((_,mi)=>midFcArrs[mi][hi])
-    :inps.map((_,k)=>inpFcArrs[k][hi]));
-  // Use output series' last year (not common years) so forecast aligns with pre-built data
-  const outLastYr=outSer[outSer.length-1]?.y||commonYrs[commonYrs.length-1];
-  const fcStartYr=Math.max(commonYrs[commonYrs.length-1],outLastYr)+1;
-  const fcYrs=Array.from({length:h},(_,i)=>fcStartYr+i);
-  const fcOut=fcX2.map(row=>m2.intercept+m2.beta.reduce((s,b,k)=>s+b*row[k],0));
+  // ── Forecast window anchored at HIST_END+1 ──
+  // Previously the window started from the LAST year in the training data.
+  // When any input was a USGS series (data ends 2015), the forecast displayed
+  // "years 2016-2018" even though real-world today is 2026 — misleading.
+  // Fix: always forecast from the first year AFTER our pipeline's hist range
+  // (HIST_END+1 = 2026), regardless of when any individual input's training
+  // data ends. Pull input forecasts from S.fc (ARIMA-prebuilt, 2026-2035) where
+  // available; fall back to AR(1) extrapolation otherwise.
+  const histEnd = (S.meta?.hist_range || [2000, 2025])[1];
+  const fcStartYr = histEnd + 1;
+  const fcYrs = Array.from({length: h}, (_, i) => fcStartYr + i);
+
+  // For each input, get forecast values for fcYrs from S.fc if possible,
+  // otherwise extrapolate far enough via AR(1) to reach fcYrs from the
+  // training end.
+  const _inpFcFor = (x) => {
+    const fcSrc = S.fc?.[x.iso3]?.[x.ind];
+    if (fcSrc && Array.isArray(fcSrc.fc_years) && fcSrc.fc_years.length) {
+      return fcYrs.map(y => {
+        const idx = fcSrc.fc_years.indexOf(y);
+        if (idx >= 0 && fcSrc.fc_values[idx] != null) return fcSrc.fc_values[idx];
+        // Fallback to last known forecast value (or last historical)
+        if (fcSrc.fc_values.length) return fcSrc.fc_values[fcSrc.fc_values.length - 1];
+        return x.ser[x.ser.length - 1]?.v;
+      });
+    }
+    // No ARIMA forecast — extrapolate AR(1) from training end to fcEndYr
+    const trainLast = x.ser[x.ser.length - 1]?.y;
+    const stepsNeeded = (fcYrs[fcYrs.length - 1]) - trainLast;
+    const raw = _ar1Fc(x.ser.map(p => p.v), Math.max(h, stepsNeeded));
+    // Slice to only the fcYrs we care about
+    return fcYrs.map(y => raw[y - trainLast - 1] ?? raw[raw.length - 1]);
+  };
+
+  const inpFcArrs = inps.map(x => {
+    const raw = _inpFcFor(x);
+    return x.mult === 1.0 || x.mult == null ? raw : raw.map(v => v * x.mult);
+  });
+  const midFcArrs = mids.length > 0 && inps.length > 0
+    ? stage1.map((m, mi) => Array.from({length: h}, (_, hi) =>
+        m.intercept + m.beta.reduce((s, b, k) => s + b * inpFcArrs[k][hi], 0)))
+    : mids.map(x => _inpFcFor(x));
+  const fcX2 = Array.from({length: h}, (_, hi) => mids.length > 0
+    ? mids.map((_, mi) => midFcArrs[mi][hi])
+    : inps.map((_, k) => inpFcArrs[k][hi]));
+  const fcOut = fcX2.map(row => m2.intercept + m2.beta.reduce((s, b, k) => s + b * row[k], 0));
 
   // Bootstrap CI (async, batched)
   area.innerHTML='<div class="pd-status" id="boot-progress">Bootstrap 0%...</div>';
@@ -4886,12 +4935,35 @@ function _renderIndustryView(){
       const raw = _getTargetSeries(country, targetLabel);
       if (raw) { seriesYrs = raw.years; seriesVs = raw.values; }
     }
+    // Compute forecast growth: last-observed -> end-of-forecast CAGR
+    let growthLine = '';
+    if (seriesYrs.length >= 2 && seriesVs.length >= 2) {
+      const histEnd = (S.meta?.hist_range || [2000, 2025])[1];
+      // Find the last observed (non-forecast) value
+      const obsIdx = seriesYrs.reduce((acc, y, i) => (y <= histEnd ? i : acc), -1);
+      const obsYr = seriesYrs[obsIdx], obsV = seriesVs[obsIdx];
+      const endYr = seriesYrs[seriesYrs.length - 1], endV = seriesVs[seriesVs.length - 1];
+      if (obsIdx >= 0 && obsIdx < seriesYrs.length - 1 && obsV !== 0) {
+        const years = endYr - obsYr;
+        const cagr = years > 0 ? (Math.pow(endV / obsV, 1 / years) - 1) * 100 : null;
+        const totalDelta = ((endV - obsV) / Math.abs(obsV)) * 100;
+        if (cagr !== null && isFinite(cagr)) {
+          const col = cagr > 0 ? 'var(--ph)' : '#7898d0';
+          const arrow = cagr > 0 ? '\u2191' : '\u2193';
+          growthLine = `<div class="ind-growth" style="color:${col}">
+            ${arrow} ${cagr >= 0 ? '+' : ''}${cagr.toFixed(1)}% CAGR
+            <span style="color:var(--mu);font-size:8px">(${obsYr}\u2192${endYr}, ${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(0)}% cumulative)</span>
+          </div>`;
+        }
+      }
+    }
     body.innerHTML = `
       <div class="ind-target">
-        <div class="ind-target-sub">${mode.toUpperCase()} target</div>
+        <div class="ind-target-sub">${mode.toUpperCase()} target \u00b7 forecast</div>
         <div class="ind-target-lbl">${targetLabel}</div>
         <div class="ind-target-ctx">${cname} \u00b7 ${commName}</div>
-        <svg id="ind-spark" width="100%" height="80" style="margin-top:6px"></svg>
+        <svg id="ind-spark" width="100%" height="90" style="margin-top:6px"></svg>
+        ${growthLine}
       </div>
       <div class="ind-sec"><div class="ind-sec-hdr">Top correlated drivers (hop 1)</div>
         ${drivers.length ? drivers.map(d => `
