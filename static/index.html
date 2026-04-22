@@ -274,7 +274,13 @@ tr.hi td{color:var(--tx);}
 .pd-add-btn:hover{border-color:var(--mu2);color:var(--mu2);}
 .pd-ctrl-col{width:120px;flex-shrink:0;display:flex;flex-direction:column;padding:5px 8px;gap:3px;}
 .pd-ctrl-lbl{font-size:8px;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);}
-.pd-ctrl-sel{width:100%;background:var(--s3);border:1px solid var(--b2);color:var(--tx);font-size:8.5px;padding:3px 5px;border-radius:2px;}
+.pd-ctrl-sel{width:100%;background:var(--s3);border:1px solid var(--b2);color:var(--tx);font-size:8.5px;padding:3px 5px;border-radius:2px;accent-color:var(--ph);}
+.pd-ctrl-sel:focus{outline:none;border-color:var(--ph);}
+.pd-ctrl-sel:hover{border-color:var(--mu2);}
+.pd-ctrl-sel option{background:var(--s2);color:var(--tx);}
+.pd-ctrl-sel option:checked{background:var(--ph);color:#000;}
+/* Method-selector explainer line shown below the dropdown */
+.pd-method-hint{font-size:7px;color:var(--mu);margin-top:3px;line-height:1.35;font-style:italic;min-height:24px;}
 .pd-hrow{display:flex;gap:2px;flex-wrap:wrap;}
 .pd-hbtn{padding:2px 5px;border:1px solid var(--b2);border-radius:2px;font-size:7px;color:var(--mu);cursor:pointer;transition:all .12s;}
 .pd-hbtn.on{border-color:var(--ph);color:var(--ph);}
@@ -482,14 +488,38 @@ tr.hi td{color:var(--tx);}
   top: 44px; right: 0;
   width: 420px;
   max-height: calc(100vh - 60px);
-  overflow-y: auto;
+  overflow-y: visible;
   background: #0d0f0c;
   border-left: 1px solid var(--ph);
   z-index: 800;
   flex-direction: column;
   padding: 0;
   font-size: 9px;
+  transition: transform .25s ease;
 }
+#industry-panel.collapsed {
+  transform: translateX(420px);
+}
+/* Collapse/expand toggle on the left edge of the panel — sits OUTSIDE the
+   panel's body so it stays visible when the panel slides off-screen. */
+#industry-collapse {
+  position: absolute;
+  top: 50%; left: -18px;
+  transform: translateY(-50%);
+  width: 18px; height: 60px;
+  display: flex; align-items: center; justify-content: center;
+  background: #0d0f0c;
+  border: 1px solid var(--ph);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  color: var(--ph);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 801;
+  transition: background .12s;
+}
+#industry-collapse:hover { background: rgba(200,240,96,.08); }
 #industry-panel .ind-hdr {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 14px;
@@ -900,8 +930,8 @@ tr.hi td{color:var(--tx);}
               <div class="pd-ctrl-lbl">HORIZON</div>
               <div class="pd-hrow">
                 <div class="pd-hbtn" onclick="predSetHorizon(1,this)">1yr</div>
-                <div class="pd-hbtn on" onclick="predSetHorizon(3,this)">3yr</div>
-                <div class="pd-hbtn" onclick="predSetHorizon(5,this)">5yr</div>
+                <div class="pd-hbtn" onclick="predSetHorizon(3,this)">3yr</div>
+                <div class="pd-hbtn on" onclick="predSetHorizon(5,this)">5yr</div>
               </div>
               <div class="pd-run-btn" onclick="predRun()">▶ RUN</div>
               <div class="pd-clr-btn" onclick="predClear()">CLEAR</div>
@@ -992,18 +1022,21 @@ tr.hi td{color:var(--tx);}
           </div>
           <div class="pd-ctrl-col" style="width:100px">
             <div class="pd-ctrl-lbl">METHOD</div>
-            <select class="pd-ctrl-sel" id="pd-method2" onchange="PRED.method=this.value">
-              <option value="ridge">Ridge</option>
-              <option value="arima">ARIMA</option>
-              <option value="rw">Random Walk</option>
-              <option value="extrap">Extrapolation</option>
-              <option value="ensemble">Total View</option>
+            <select class="pd-ctrl-sel pd-method-sel" id="pd-method2"
+                    onchange="PRED.method=this.value;_updateMethodHint(this.value)"
+                    onmouseover="_updateMethodHint(this.value)">
+              <option value="ridge"    title="Ridge regression: 2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.">Ridge</option>
+              <option value="arima"    title="ARIMA: pre-built autoregressive forecasts. Uses each indicator's own history to project forward (no cross-indicator influence).">ARIMA</option>
+              <option value="rw"       title="Random Walk with drift: assumes the indicator continues at its average historical pace. Useful as a no-skill baseline.">Random Walk</option>
+              <option value="extrap"   title="Linear extrapolation: fits a straight line through the last 10 years and projects it forward. Simple but ignores curvature.">Extrapolation</option>
+              <option value="ensemble" title="Total View: runs all four methods and overlays them so you can see the spread of forecasts.">Total View</option>
             </select>
+            <div class="pd-method-hint" id="pd-method-hint">2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.</div>
             <div class="pd-ctrl-lbl">HORIZON</div>
             <div class="pd-hrow">
               <div class="pd-hbtn" onclick="predSetHorizon(1,this)">1yr</div>
-              <div class="pd-hbtn on" onclick="predSetHorizon(3,this)">3yr</div>
-              <div class="pd-hbtn" onclick="predSetHorizon(5,this)">5yr</div>
+              <div class="pd-hbtn" onclick="predSetHorizon(3,this)">3yr</div>
+              <div class="pd-hbtn on" onclick="predSetHorizon(5,this)">5yr</div>
             </div>
             <div class="pd-run-btn" onclick="predRun()" style="font-size:7px;padding:3px">RUN</div>
             <div class="pd-clr-btn" onclick="predClear()">CLEAR</div>
@@ -3496,7 +3529,20 @@ function _commonYrs(sArr){
 }
 
 // ── PREDICTOR (unified What-If + Forecast) ──
-const PRED={inputs:[],intermediates:[],outputs:[],horizon:3,method:'ridge',scenario:'base',_role:null,_candidates:null};
+const PRED={inputs:[],intermediates:[],outputs:[],horizon:5,method:'ridge',scenario:'base',_role:null,_candidates:null};
+
+// Per-method short explainer shown beneath the method dropdown
+const PRED_METHOD_HINTS = {
+  ridge:    '2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.',
+  arima:    'Pre-built autoregressive forecast. Uses each indicator\u2019s own history to project forward (no cross-indicator influence).',
+  rw:       'Random walk with drift. Assumes the indicator continues at its average historical pace. Useful as a no-skill baseline.',
+  extrap:   'Linear extrapolation. Fits a straight line through the last 10 years and projects it forward. Simple but ignores curvature.',
+  ensemble: 'Total view. Runs all four methods and overlays them so you can see the spread of forecasts.',
+};
+function _updateMethodHint(m){
+  const el = document.getElementById('pd-method-hint');
+  if (el) el.textContent = PRED_METHOD_HINTS[m] || '';
+}
 const PRED_MAX={inputs:5,intermediates:5,outputs:1};
 
 // ── Predict-from-node: auto-populate predictor from selected node's hops ──
@@ -3516,6 +3562,36 @@ function predFromNode(){
   if(predBtn)switchPgTab('predictor',predBtn);
   predRender();
 }
+// Used by Industry > Import-into-Prediction. Puts hop-1 in INPUT and hop-2
+// in INTERMEDIATE so the 2-stage Ridge model sees a real value-driver chain
+// (input -> intermediate -> output) instead of dumping everything into INPUT.
+function predFromHopGraph(node){
+  if (!node) return;
+  const iso3 = node.country || (node.id||'').split('::')[0] || S.countries[0] || 'USA';
+  const ind  = node.label || (node.id||'').split('::')[1] || node.id;
+  // Reset predictor state, install the node as output
+  PRED.inputs = []; PRED.intermediates = []; PRED.outputs = [];
+  PRED.outputs = [{id: node.id, iso3, ind, label: ind, via: 'node'}];
+  // Hop-1 -> inputs (top 5 by strength), hop-2 -> intermediates (top 5)
+  const hop1 = (S._hopData?.[1] || []).slice().sort((a,b)=>b.strength-a.strength).slice(0,5);
+  const hop2 = (S._hopData?.[2] || []).slice().sort((a,b)=>b.strength-a.strength).slice(0,5);
+  PRED.inputs = hop1.map(h => ({
+    id: h.othId, iso3: h.othCountry || iso3, ind: h.othLbl, label: h.othLbl,
+    mult: 1.0, via: 'hop1'
+  }));
+  PRED.intermediates = hop2.map(h => ({
+    id: h.othId, iso3: h.othCountry || iso3, ind: h.othLbl, label: h.othLbl,
+    mult: 1.0, via: 'hop2'
+  }));
+  // Clear candidate-checkbox UI — Industry import is a one-shot allocation,
+  // not the iterative checkbox flow used by predFromNode.
+  PRED._candidates = null;
+  // Switch to the Predictor tab (don't auto-run; user picks method/horizon)
+  const predBtn = document.querySelector('#pg-tabrow .tabbtn[onclick*="predictor"]');
+  if (predBtn) switchPgTab('predictor', predBtn);
+  predRender();
+}
+
 function _refreshPredCandidates(iso3){
   const hopData=S._hopData||{};
   const candidates=[];
@@ -3633,9 +3709,11 @@ function predAddEntry(lane,entry){
 }
 function predRemove(lane,idx){PRED[lane].splice(idx,1);predRender();}
 function predClear(){
-  PRED.inputs=[];PRED.intermediates=[];PRED.outputs=[];PRED.horizon=3;PRED.method='ridge';PRED._candidates=null;
+  PRED.inputs=[];PRED.intermediates=[];PRED.outputs=[];PRED.horizon=5;PRED.method='ridge';PRED._candidates=null;
   const msel=$('pd-method2');if(msel)msel.value='ridge';
-  $('pgtab-predictor')?.querySelectorAll('.pd-hbtn').forEach((b,i)=>b.classList.toggle('on',i===1));
+  // Highlight the 5yr button (index 2) — was 3yr (index 1) before user
+  // requested 5yr as default to match the typical mid-term forecasting window
+  $('pgtab-predictor')?.querySelectorAll('.pd-hbtn').forEach((b,i)=>b.classList.toggle('on',i===2));
   const ca=$('pd-chart-area2');if(ca)ca.innerHTML='<div class="pd-status">Add inputs and an output, then click RUN</div>';
   const rr=$('pd-result-row2');if(rr)rr.style.display='none';
   const fl=$('pd-flow2');if(fl)fl.innerHTML='';
@@ -4832,6 +4910,7 @@ function _renderIndustryTable(o /* unused; kept for call-site compatibility */){
     `<option value="${k}" ${k === IND_VIEW.commodity ? 'selected' : ''}>${c.name}</option>`
   ).join('');
   panel.innerHTML = `
+    <div id="industry-collapse" onclick="toggleIndustryCollapse()" title="Collapse / expand panel">\u25b6</div>
     <div class="ind-hdr">
       <div class="ind-hdr-title">Metals &amp; Minerals</div>
       <div class="ind-hdr-close" onclick="closeIndustryView()">\u2715</div>
@@ -4856,6 +4935,13 @@ function _renderIndustryTable(o /* unused; kept for call-site compatibility */){
   _renderIndustryView();
 }
 
+function toggleIndustryCollapse(){
+  const p = document.getElementById('industry-panel'); if (!p) return;
+  const collapsed = p.classList.toggle('collapsed');
+  // Update the arrow direction so it points the way the next click will move
+  const btn = document.getElementById('industry-collapse');
+  if (btn) btn.textContent = collapsed ? '\u25c0' : '\u25b6';
+}
 function _onIndCountry(v){ IND_VIEW.country = v; _renderIndustryView(); }
 function _onIndCommodity(v){ IND_VIEW.commodity = v; _renderIndustryView(); }
 function _setIndMode(m){
@@ -4977,7 +5063,7 @@ function _renderIndustryView(){
         `).join('') : '<div class="ind-hint" style="padding:10px 14px">No correlated drivers found for this selection in the current year window.</div>'}
       </div>
       <div class="ind-actions">
-        <div class="ind-btn primary" onclick="_industryRunForecast()">RUN FORECAST</div>
+        <div class="ind-btn primary" onclick="_industryRunForecast()" title="Pushes the target as OUTPUT, hop-1 drivers as INPUTS, hop-2 drivers as INTERMEDIATES into the Predictor tab. You then choose method/horizon and click RUN.">Input data \u2014 import into Prediction \u25b8</div>
       </div>
     `;
     // Draw the historical+forecast sparkline
@@ -5046,7 +5132,11 @@ function _industryEmptyState(iso, commKey, mode){
 }
 
 function _industryRunForecast(){
-  // Jump to the Predictor: select the target node + auto-populate hop-1 inputs
+  // Industry-view "Input data: import into Prediction" handler.
+  // Selects the target node so the hop engine populates S._hopData, then
+  // routes hop-1 -> Predictor INPUTs and hop-2 -> INTERMEDIATEs and
+  // switches to the Predictor tab. We DO NOT auto-run the prediction —
+  // the user picks the method/horizon and clicks RUN themselves.
   const { country, commodity, mode } = IND_VIEW;
   const targetLabel = _resolveIndustryTarget(country, commodity, mode);
   if (!targetLabel) return;
@@ -5057,32 +5147,26 @@ function _industryRunForecast(){
   if (!t) return;
   if (!t.label) t.label = t.id;
   if (!t.country) t.country = country;
+  // Trigger node selection so hop-1/2/3 data populates in S._hopData
   selectNode(t);
-  setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 400);
+  // Then split the populated hops into Inputs (hop-1) + Intermediates (hop-2)
+  setTimeout(() => { predFromHopGraph(t); }, 400);
 }
 async function closeIndustryView(){
+  // User feedback: closing the industry panel was triggering a full
+  // setLevel/applyCountryChange + renderNet, which re-laid-out every node
+  // from scratch and lost the positions the user had carefully arranged.
+  // The new behaviour: just hide the panel. Any sources/country/level
+  // changes the industry view introduced stay in place — the user can
+  // adjust them via the source picker / country selector if they want.
+  // RESET on the source picker (which clears INDUSTRY_PREV anyway) is the
+  // explicit way to wipe state.
   const p = document.getElementById('industry-panel'); if (p) p.style.display = 'none';
-  // Restore the user's source/country/level selection that was in place
-  // before loadIndustryView() mutated them. Never touches the predictor
-  // output — user might want to keep forecasting after closing the panel.
-  if (INDUSTRY_PREV.sources) {
-    S.sources = INDUSTRY_PREV.sources;
-    if (INDUSTRY_PREV.countries) S.countries = INDUSTRY_PREV.countries;
-    if (INDUSTRY_PREV.level && typeof setLevel === 'function' && S.level !== INDUSTRY_PREV.level) {
-      await setLevel(INDUSTRY_PREV.level);
-    }
-    if (typeof applyCountryChange === 'function') await applyCountryChange();
-    if (typeof _syncSrcCheckboxes === 'function') _syncSrcCheckboxes();
-    S._srcConn = null;
-    if (typeof _recomputeSrcVisibility === 'function') _recomputeSrcVisibility();
-    if (typeof buildNodeList === 'function') buildNodeList();
-    if (typeof updateMeta === 'function') updateMeta();
-    if (typeof renderNet === 'function') renderNet();
-    // Clear the stash so the next industry-view open takes a fresh snapshot
-    INDUSTRY_PREV.sources = null;
-    INDUSTRY_PREV.countries = null;
-    INDUSTRY_PREV.level = null;
-  }
+  // Drop the stash without restoring, so the next industry open captures
+  // the current (post-industry) state as its baseline.
+  INDUSTRY_PREV.sources = null;
+  INDUSTRY_PREV.countries = null;
+  INDUSTRY_PREV.level = null;
 }
 function _ontologyIndicatorExists(label){
   // Check the full indicator registry rather than the currently-rendered
