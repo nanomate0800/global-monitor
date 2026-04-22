@@ -4750,7 +4750,7 @@ function _positionBubble(bb, targetRect, side){
 const MINING_COMMODITIES = {
   aluminum: {name:'Aluminum',     hs:'76', usgs:'Aluminum',   bgsKey:'Aluminum Production (BGS)',                     pinkKey:'Global Price: Aluminum (Pink Sheets)'},
   copper:   {name:'Copper',       hs:'74', usgs:'Copper',     bgsKey:'Copper Mine Production (BGS)',                  pinkKey:'Global Price: Copper (Pink Sheets)'},
-  'iron-ore': {name:'Iron Ore',   hs:'72', usgs:null,         bgsKey:'Iron Ore Production (BGS)',                     pinkKey:'Global Price: Iron ore (Pink Sheets)'},
+  'iron-ore': {name:'Iron Ore',   hs:'72', hsName:'Iron and Steel', usgs:null, bgsKey:'Iron Ore Production (BGS)', pinkKey:'Global Price: Iron ore (Pink Sheets)'},
   zinc:     {name:'Zinc',         hs:'79', usgs:'Zinc',       bgsKey:'Zinc Mine Production (BGS)',                    pinkKey:'Global Price: Zinc (Pink Sheets)'},
   lead:     {name:'Lead',         hs:'78', usgs:'Lead',       bgsKey:'Lead Mine Production (BGS)',                    pinkKey:'Global Price: Lead (Pink Sheets)'},
   nickel:   {name:'Nickel',       hs:null, usgs:'Nickel',     bgsKey:'Nickel Mine Production (BGS)',                  pinkKey:'Global Price: Nickel (Pink Sheets)'},
@@ -4971,6 +4971,13 @@ function _resolveIndustryTarget(iso, commKey, mode){
       const u = `US ${c.usgs} Primary Production (USGS)`;
       if (has(u)) return u;
     }
+    // For non-US: prefer HS chapter exports as a country-specific supply
+    // proxy — BGS is a world total and won't appear in per-country graphs.
+    if (iso !== 'USA' && c.hs) {
+      const hsName = c.hsName || c.name;
+      const exp = `${hsName} Exports (HS ${c.hs}, USD)`;
+      if (has(exp)) return exp;
+    }
     return c.bgsKey && has(c.bgsKey) ? c.bgsKey : null;
   }
   if (mode === 'demand') {
@@ -5013,6 +5020,10 @@ function _renderIndustryView(){
     // Top correlated drivers = hop-1 neighbours of this node
     let drivers = [];
     let seriesYrs = [], seriesVs = [];
+    // Fetch sparkline data regardless of whether the node appears in the
+    // current graph (e.g. BGS world-total has no per-country edges).
+    const raw = _getTargetSeries(country, targetLabel);
+    if (raw) { seriesYrs = raw.years; seriesVs = raw.values; }
     if (t) {
       if (!t.label) t.label = t.id;
       if (!t.country) t.country = country;
@@ -5022,9 +5033,6 @@ function _renderIndustryView(){
         const hd = _buildHopData(t.id, ae);
         drivers = (hd[1] || []).slice(0, 6);
       }
-      // Historical series + forecast for target node
-      const raw = _getTargetSeries(country, targetLabel);
-      if (raw) { seriesYrs = raw.years; seriesVs = raw.values; }
     }
     // Compute forecast growth: last-observed -> end-of-forecast CAGR
     let growthLine = '';

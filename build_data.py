@@ -88,6 +88,9 @@ def _infer_source(code):
     if code.startswith('IEA'):   return 'IEA'
     if code.startswith('UNDP'):  return 'UNDP'
     if code.startswith('IMF'):   return 'IMF'
+    # NOTE: more specific prefixes (CTHS, CTV2) must come before 'CT'
+    if code.startswith('CTHS'):   return 'ComtradeHS'
+    if code.startswith('CTV2'):   return 'ComtradeV2'
     if code.startswith('CT'):    return 'Comtrade'
     if code.startswith('FT'):    return 'FastTrack'
     if code.startswith('WHO'):   return 'WHO'
@@ -103,8 +106,6 @@ def _infer_source(code):
     if code.startswith('USGS'):   return 'USGS'
     if code.startswith('BGS'):    return 'BGS'
     if code.startswith('PINK'):   return 'PinkSheets'
-    if code.startswith('CTHS'):   return 'ComtradeHS'
-    if code.startswith('CTV2'):   return 'ComtradeV2'
     return 'WB'
 
 # Pull unique indicator→source map from db
@@ -797,11 +798,31 @@ def compute_corr(data_dict, y1, y2, min_obs=5, cat_map=None):
                 # from parallel monotonic trends over 2000-2023. The whitelist
                 # above allows Economy↔{Demographic,Health,Social} to keep GDP
                 # correlations alive, so we need a source-level flag here.
-                _COMMODITY_SRCS = {'USGS', 'BGS', 'PinkSheets', 'ComtradeV2'}
+                _COMMODITY_SRCS = {'USGS', 'BGS', 'PinkSheets', 'ComtradeV2', 'ComtradeHS'}
                 _DEMO_CATS      = {'Demographic', 'Demographics', 'Health', 'Social'}
                 if (src_a in _COMMODITY_SRCS and cat_b in _DEMO_CATS) or \
                    (src_b in _COMMODITY_SRCS and cat_a in _DEMO_CATS):
                     _q_bits |= 1  # bit 0 — hidden by Balanced
+
+                # ── Commodity ↔ DoingBusiness: monotonic reform indices ──
+                # DB scores trend steadily upward 2003–2019 regardless of
+                # commodity cycles → r up to 0.999, zero causal mechanism.
+                if (src_a in _COMMODITY_SRCS and src_b == 'DoingBusiness') or \
+                   (src_b in _COMMODITY_SRCS and src_a == 'DoingBusiness'):
+                    _q_bits |= 1
+
+                # ── Commodity ↔ UNDP inequality metrics ──
+                # Atkinson income inequality / IHDI trend along development
+                # trajectories that happen to co-move with commodity prices.
+                # Education/Health/Social inequality are already caught above
+                # via _DEMO_CATS; Income Inequality is categorised Economy so
+                # needs an explicit label check.
+                _INEQUALITY_LABELS = {
+                    'Income Inequality (Atkinson)',
+                }
+                if (src_a in _COMMODITY_SRCS and b in _INEQUALITY_LABELS) or \
+                   (src_b in _COMMODITY_SRCS and a in _INEQUALITY_LABELS):
+                    _q_bits |= 1
 
             common = sorted(set(residuals[a]) & set(residuals[b]))
             n = len(common)
