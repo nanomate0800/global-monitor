@@ -1994,6 +1994,110 @@ def fetch_comtrade_hs():
     return df
 
 
+# ── UN Comtrade v2 preview — HS-specific mineral trade per country ──
+# The public preview endpoint at comtradeapi.un.org lets us pull annual
+# imports/exports (USD) for specific HS codes without authentication. We pull
+# the six base-metal chapters (HS 72, 74, 76, 78, 79, 80) for every country
+# every year in a handful of multi-dimension queries. Unit is always USD —
+# quantity/tonnes aren't included in the preview tier, but USD imports/exports
+# are enough to analyse demand dynamics alongside BGS production tonnes.
+COMTRADE_V2_BASE = 'https://comtradeapi.un.org/public/v1/preview/C/A/HS'
+# (HS chapter -> (display commodity, description))
+COMTRADE_HS_CHAPTERS = {
+    '72': ('Iron and Steel',        'Iron and steel'),
+    '74': ('Copper',                'Copper and articles of'),
+    '76': ('Aluminum',              'Aluminum and articles of'),
+    '78': ('Lead',                  'Lead and articles of'),
+    '79': ('Zinc',                  'Zinc and articles of'),
+    '80': ('Tin',                   'Tin and articles of'),
+}
+# UN M49 numeric codes for our tracked countries
+COMTRADE_RCODE = {
+    'USA': 842, 'CHN': 156, 'RUS': 643, 'BRA': 76, 'DEU': 276,
+    'JPN': 392, 'IND': 356, 'IDN': 360, 'KEN': 404, 'SGP': 702,
+}
+
+def fetch_comtrade_hs_specific():
+    """UN Comtrade v2 preview — HS-specific metal trade per country, in USD.
+
+    Empirically the public endpoint handles 6 HS codes × 12 years × 1 flow
+    in a single request. We batch years in two 12-year windows (2000-2011,
+    2012-2023, then latest) and issue 4 queries per country:
+      country × {M flow, X flow} × 2 year-windows = 4 queries each
+    Total = 40 queries across 10 countries. At ~1.2s pacing this takes
+    roughly one minute. 429s trigger a backoff-retry.
+    """
+    print("\n[Comtrade v2] Fetching HS-specific metal trade per country...")
+    rows = []
+    # Year windows (inclusive). Keep each window at <= 12 years to stay
+    # within the preview endpoint's response-size limit.
+    year_windows = []
+    cur = YEAR_START
+    while cur <= YEAR_END:
+        end = min(cur + 11, YEAR_END)
+        year_windows.append((cur, end))
+        cur = end + 1
+    hs_str = ','.join(COMTRADE_HS_CHAPTERS.keys())
+    total_queries = len(COMTRADE_RCODE) * 2 * len(year_windows)
+    q_idx = 0
+    for iso3, rcode in COMTRADE_RCODE.items():
+        iso_before = len(rows)
+        for flow in ('M', 'X'):
+            flow_label = 'Imports' if flow == 'M' else 'Exports'
+            for (y_start, y_end) in year_windows:
+                q_idx += 1
+                year_str = ','.join(str(y) for y in range(y_start, y_end + 1))
+                url = (f'{COMTRADE_V2_BASE}?cmdCode={hs_str}&flowCode={flow}'
+                       f'&partnerCode=0&reporterCode={rcode}&period={year_str}')
+                ok = False
+                for attempt in range(3):
+                    try:
+                        r = requests.get(url, timeout=60)
+                        if r.status_code == 429:
+                            time.sleep(5 * (attempt + 1))
+                            continue
+                        r.raise_for_status()
+                        data = r.json()
+                        for rec in data.get('data', []) or []:
+                            hs = str(rec.get('cmdCode') or '').strip()
+                            if hs not in COMTRADE_HS_CHAPTERS:
+                                continue
+                            commodity, _desc = COMTRADE_HS_CHAPTERS[hs]
+                            try:
+                                year = int(rec.get('refYear') or rec.get('period') or 0)
+                            except (TypeError, ValueError):
+                                continue
+                            if year < YEAR_START or year > YEAR_END:
+                                continue
+                            try:
+                                v = float(rec.get('primaryValue') or 0)
+                            except (TypeError, ValueError):
+                                continue
+                            if v <= 0:
+                                continue
+                            label = f'{commodity} {flow_label} (HS {hs}, USD)'
+                            rows.append({
+                                'source': 'ComtradeV2', 'iso3': iso3, 'year': year,
+                                'indicator_code': f'CTV2_{commodity.replace(" ","").upper()[:20]}_{flow}',
+                                'indicator_name': label,
+                                'category': 'Economy', 'unit': 'USD', 'value': v,
+                            })
+                        ok = True
+                        break
+                    except Exception as e:
+                        if attempt == 2:
+                            print(f"    [Comtrade v2] {iso3}/{flow}/{y_start}-{y_end}: {e}")
+                        time.sleep(2)
+                time.sleep(1.2)  # Rate-limit pacing
+        print(f"  [{q_idx}/{total_queries}] {iso3}: {len(rows) - iso_before} obs")
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=['source','iso3','year','indicator_code','indicator_name',
+                 'category','unit','value'])
+    df.to_csv(RAW_DIR / 'comtrade_v2_metals.csv', index=False)
+    print(f"  [Comtrade v2] Saved {len(df)} rows -> data/raw/comtrade_v2_metals.csv")
+    return df
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("Global Monitor -- Extract")
@@ -2020,5 +2124,6 @@ if __name__ == '__main__':
     fetch_bgs()
     fetch_pink_sheets()
     fetch_comtrade_hs()
+    fetch_comtrade_hs_specific()
     fetch_stocks()
     print("\nExtract complete. Run etl/load.py next.")

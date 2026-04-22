@@ -104,6 +104,7 @@ def _infer_source(code):
     if code.startswith('BGS'):    return 'BGS'
     if code.startswith('PINK'):   return 'PinkSheets'
     if code.startswith('CTHS'):   return 'ComtradeHS'
+    if code.startswith('CTV2'):   return 'ComtradeV2'
     return 'WB'
 
 # Pull unique indicator→source map from db

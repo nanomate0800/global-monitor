@@ -438,7 +438,10 @@ tr.hi td{color:var(--tx);}
 #industry-menu {
   display: none;
   position: fixed;
-  top: 48px; left: 130px;
+  /* top/left set dynamically in openIndustryMenu() based on the button's
+     bounding rect so the dropdown anchors under the button regardless of
+     viewport width or top-bar layout */
+  top: 48px; left: 0;
   width: 280px;
   background: #0d0f0c;
   border: 1px solid var(--ph);
@@ -508,6 +511,66 @@ tr.hi td{color:var(--tx);}
 #industry-panel .ind-rat { color: var(--mu); font-size: 8px; line-height: 1.4; }
 #industry-panel .ind-warn { color: var(--sv, #a66); font-size: 7.5px; margin-left: 4px; }
 #industry-panel .ind-hint { padding: 10px 14px; color: var(--mu); font-size: 7.5px; font-style: italic; }
+
+/* Controls (country + commodity dropdowns) */
+#industry-panel .ind-controls { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--b1); }
+#industry-panel .ind-ctrl { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+#industry-panel .ind-ctrl label { font-size: 7px; color: var(--mu); letter-spacing: .08em; text-transform: uppercase; }
+#industry-panel .ind-ctrl select {
+  background: var(--bg); color: var(--tx);
+  border: 1px solid var(--b2); border-radius: 2px;
+  padding: 4px 6px; font-size: 9px; font-family: 'DM Mono', monospace;
+  cursor: pointer;
+}
+#industry-panel .ind-ctrl select:focus { outline: none; border-color: var(--ph); }
+#industry-panel .ind-ctrl select:hover { border-color: var(--mu2); }
+
+/* Tab row (DEMAND / SUPPLY / PRICE) */
+#industry-panel .ind-tabs { display: flex; border-bottom: 1px solid var(--b1); }
+#industry-panel .ind-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--mu);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .12s;
+}
+#industry-panel .ind-tab:hover { color: var(--tx); }
+#industry-panel .ind-tab.active { color: var(--ph); border-bottom-color: var(--ph); background: rgba(200,240,96,.03); }
+
+/* Target indicator block at top of body */
+#industry-panel .ind-body { flex: 1; overflow-y: auto; }
+#industry-panel .ind-target { padding: 12px 14px; border-bottom: 1px solid var(--b2); background: rgba(200,240,96,.02); }
+#industry-panel .ind-target-sub { font-size: 7px; color: var(--ph); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 3px; }
+#industry-panel .ind-target-lbl { font-size: 11px; color: var(--tx); line-height: 1.3; margin-bottom: 3px; font-weight: 500; }
+#industry-panel .ind-target-ctx { font-size: 8px; color: var(--mu); }
+
+/* Correlated drivers — positive/negative colour coding */
+#industry-panel .ind-r { font-weight: 600; }
+#industry-panel .ind-r.pos { color: var(--ph); }
+#industry-panel .ind-r.neg { color: #7898d0; }
+#industry-panel .ind-ctx-mini { color: var(--mu); font-size: 7.5px; }
+
+/* Empty state */
+#industry-panel .ind-empty { padding: 20px 14px; text-align: center; }
+#industry-panel .ind-empty-title { font-size: 10px; color: var(--mu2); margin-bottom: 6px; }
+#industry-panel .ind-empty-body { font-size: 9px; color: var(--mu); line-height: 1.5; }
+
+/* Action buttons at bottom of panel */
+#industry-panel .ind-actions { padding: 12px 14px; border-top: 1px solid var(--b2); }
+#industry-panel .ind-btn {
+  display: inline-block; padding: 6px 14px;
+  font-size: 9px; letter-spacing: .1em;
+  border: 1px solid var(--b2); border-radius: 2px;
+  color: var(--mu); cursor: pointer; transition: all .12s;
+  user-select: none;
+}
+#industry-panel .ind-btn:hover { color: var(--tx); border-color: var(--mu2); }
+#industry-panel .ind-btn.primary { color: var(--ph); border-color: var(--ph); background: rgba(200,240,96,.05); }
+#industry-panel .ind-btn.primary:hover { background: rgba(200,240,96,.12); }
 </style>
 </head>
 <body>
@@ -710,7 +773,8 @@ tr.hi td{color:var(--tx);}
             <div class="src-row" data-src="USGS" onclick="toggleSrc('USGS')"><div class="src-chk" id="sc-USGS"></div>USGS (US Minerals Commodities)</div>
             <div class="src-row" data-src="BGS" onclick="toggleSrc('BGS')"><div class="src-chk" id="sc-BGS"></div>BGS (Global Mineral Production)</div>
             <div class="src-row" data-src="PinkSheets" onclick="toggleSrc('PinkSheets')"><div class="src-chk" id="sc-PinkSheets"></div>WB Pink Sheets (Commodity Prices)</div>
-            <div class="src-row" data-src="ComtradeHS" onclick="toggleSrc('ComtradeHS')"><div class="src-chk" id="sc-ComtradeHS"></div>Comtrade HS (Trade by Commodity)</div>
+            <div class="src-row" data-src="ComtradeHS" onclick="toggleSrc('ComtradeHS')"><div class="src-chk" id="sc-ComtradeHS"></div>Comtrade HS (Trade Aggregates)</div>
+            <div class="src-row" data-src="ComtradeV2" onclick="toggleSrc('ComtradeV2')"><div class="src-chk" id="sc-ComtradeV2"></div>Comtrade v2 (Metal Trade by HS)</div>
           </div>
         </div>
         <div class="src-domain">
@@ -1163,6 +1227,13 @@ const SUBCAT_RULES=[
   // USGS / BGS — Mining & Minerals (under Economy)
   {m:'(USGS)',sub:'Mining & Minerals'},
   {m:'(BGS)', sub:'Mining & Minerals'},
+  // Comtrade v2 HS-specific — metal trade flows (under Economy)
+  {m:'(HS 72, USD)',sub:'Metal Trade (HS)'},
+  {m:'(HS 74, USD)',sub:'Metal Trade (HS)'},
+  {m:'(HS 76, USD)',sub:'Metal Trade (HS)'},
+  {m:'(HS 78, USD)',sub:'Metal Trade (HS)'},
+  {m:'(HS 79, USD)',sub:'Metal Trade (HS)'},
+  {m:'(HS 80, USD)',sub:'Metal Trade (HS)'},
   // Pink Sheets — Commodity Prices (under Economy)
   {m:'Global Price:',sub:'Commodity Prices'},
   // Comtrade HS — Commodity Trade (under Economy)
@@ -1716,6 +1787,7 @@ function getActiveCats(){
     'BGS':           ['Economy'],
     'PinkSheets':    ['Economy'],
     'ComtradeHS':    ['Economy'],
+    'ComtradeV2':    ['Economy'],
   };
   const cats=new Set(Object.entries(SRC_CAT_MAP).filter(([s])=>S.sources.has(s)).flatMap(([,c])=>c));
   cats.add('Other');
@@ -1748,11 +1820,17 @@ function toggleSrcDomain(d){
 }
 // ── SOURCE PICKER: reset to all-on visible state ──
 function resetSrcPicker(){
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS','ComtradeV2'];
   S.sources=new Set(all);
   document.querySelectorAll('.src-row[data-src]').forEach(r=>r.classList.remove('hide','dim'));
   _syncSrcCheckboxes();
   S._srcConn=null;
+  // Clear any stashed pre-industry state — reset supersedes restore.
+  if (typeof INDUSTRY_PREV !== 'undefined') {
+    INDUSTRY_PREV.sources = null;
+    INDUSTRY_PREV.countries = null;
+    INDUSTRY_PREV.level = null;
+  }
   buildNodeList();updateMeta();renderNet();globeCountryMode();
   _recomputeSrcVisibility();
 }
@@ -1788,7 +1866,7 @@ function _buildSrcConnMap(){
 // ── SOURCE PICKER: hide rows that have no edges connecting to any selected source ──
 function _recomputeSrcVisibility(){
   const map=_buildSrcConnMap();
-  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS'];
+  const all=['WB','IMF','UNDP','NASA','Comtrade','IEA','FAOSTAT','FastTrack','WHO','ILO','WTO','UN Population','Supply Chain','UNCTAD','Damodaran','Fraser','WBInnov','DoingBusiness','USGS','BGS','PinkSheets','ComtradeHS','ComtradeV2'];
   // If nothing selected, show everything
   if(S.sources.size===0){
     all.forEach(s=>{const r=document.querySelector(`.src-row[data-src="${s}"]`); if(r){r.classList.remove('hide','dim');}});
@@ -2211,6 +2289,7 @@ function buildNodeList(){
     'BGS':           ['Economy'],
     'PinkSheets':    ['Economy'],
     'ComtradeHS':    ['Economy'],
+    'ComtradeV2':    ['Economy'],
   };
   const allowedCats=new Set(Object.entries(SRC_CAT).filter(([s])=>S.sources.has(s)).flatMap(([,cats])=>cats));
   allowedCats.add('Other'); // always show misc
@@ -4457,12 +4536,36 @@ function _positionBubble(bb, targetRect, side){
 // ============================================================================
 //  INDUSTRY VIEW — Start-menu style panel + predefined mining ontology
 // ============================================================================
+// ── MINING COMMODITY REGISTRY ──
+// Each commodity maps to HS chapter + the source-specific indicator labels
+// expected to exist for DEMAND / SUPPLY / PRICE views. The UI falls back
+// gracefully when a label is missing (e.g. no USGS data for non-US demand).
+const MINING_COMMODITIES = {
+  aluminum: {name:'Aluminum',     hs:'76', usgs:'Aluminum',   bgsKey:'Aluminum Production (BGS)',                     pinkKey:'Global Price: Aluminum (Pink Sheets)'},
+  copper:   {name:'Copper',       hs:'74', usgs:'Copper',     bgsKey:'Copper Mine Production (BGS)',                  pinkKey:'Global Price: Copper (Pink Sheets)'},
+  'iron-ore': {name:'Iron Ore',   hs:'72', usgs:null,         bgsKey:'Iron Ore Production (BGS)',                     pinkKey:'Global Price: Iron ore (Pink Sheets)'},
+  zinc:     {name:'Zinc',         hs:'79', usgs:'Zinc',       bgsKey:'Zinc Mine Production (BGS)',                    pinkKey:'Global Price: Zinc (Pink Sheets)'},
+  lead:     {name:'Lead',         hs:'78', usgs:'Lead',       bgsKey:'Lead Mine Production (BGS)',                    pinkKey:'Global Price: Lead (Pink Sheets)'},
+  nickel:   {name:'Nickel',       hs:null, usgs:'Nickel',     bgsKey:'Nickel Mine Production (BGS)',                  pinkKey:'Global Price: Nickel (Pink Sheets)'},
+  tin:      {name:'Tin',          hs:'80', usgs:'Tin',        bgsKey:'Tin Mine Production (BGS)',                     pinkKey:'Global Price: Tin (Pink Sheets)'},
+  gold:     {name:'Gold',         hs:null, usgs:'Gold',       bgsKey:'Gold Mine Production (BGS)',                    pinkKey:'Global Price: Gold (Pink Sheets)'},
+  cobalt:   {name:'Cobalt',       hs:null, usgs:'Cobalt',     bgsKey:'Cobalt Production (BGS)',                       pinkKey:null},
+  lithium:  {name:'Lithium',      hs:null, usgs:'Lithium',    bgsKey:'Lithium Production (BGS)',                      pinkKey:null},
+};
+
+// UI state for the industry view
+const IND_VIEW = { country:'USA', commodity:'aluminum', mode:'demand' };
+
 const INDUSTRY_ONTOLOGY = {
   mining: {
     name: 'Mining & Minerals',
     description: 'Forecast aluminum demand using US consumption, global production (BGS), global commodity prices (Pink Sheets), and trade flows (Comtrade HS).',
     target_country: 'USA',
-    required_sources: ['USGS','BGS','PinkSheets','ComtradeHS','WB','Comtrade','WBInnov','Supply Chain','IEA'],
+    // Only the minerals-specific sources are required — other sources the
+    // ontology references (WB, Comtrade, Supply Chain, etc.) are nice-to-have
+    // and the user can toggle them on if they want richer context. This keeps
+    // the sidebar uncluttered when the industry view loads.
+    required_sources: ['USGS','BGS','PinkSheets','ComtradeHS'],
     target: {
       label: 'US Aluminum Apparent Consumption (USGS)',
       rationale: 'Apparent consumption = production + imports \u2212 exports \u00b1 stocks. The cleanest single proxy for US aluminum market demand.'
@@ -4492,9 +4595,22 @@ const INDUSTRY_ONTOLOGY = {
 
 function openIndustryMenu(){
   const m = document.getElementById('industry-menu');
+  const btn = document.getElementById('industry-btn');
   if (!m) return;
   const visible = m.style.display === 'block';
   m.style.display = visible ? 'none' : 'block';
+  // Position under the button each time it opens. The top bar can shift if
+  // the user resizes the viewport or shows/hides sections, so recalc rather
+  // than hard-coding pixel offsets.
+  if (!visible && btn) {
+    const rect = btn.getBoundingClientRect();
+    m.style.top  = (rect.bottom + 2) + 'px';
+    m.style.left = rect.left + 'px';
+    // If the menu would spill past the right edge, pull it back in
+    const menuW = m.offsetWidth || 280;
+    const maxLeft = window.innerWidth - menuW - 8;
+    if (rect.left > maxLeft) m.style.left = maxLeft + 'px';
+  }
   // Set up one-time outside-click handler to close the menu
   if (!visible) {
     setTimeout(() => {
@@ -4516,14 +4632,29 @@ function _industryMenuOutsideClick(e){
 function closeIndustryMenu(){
   const m = document.getElementById('industry-menu'); if (m) m.style.display = 'none';
 }
+// Snapshot of user-state taken when an industry view opens. Restored when the
+// panel closes so the user never permanently loses their source/country
+// selection just because they looked at an industry.
+const INDUSTRY_PREV = { sources:null, countries:null, level:null };
+
 async function loadIndustryView(industry){
   closeIndustryMenu();
   const o = INDUSTRY_ONTOLOGY[industry];
   if (!o) { alert('Industry not yet defined: ' + industry); return; }
 
+  // ── Snapshot current user state BEFORE mutating anything ──
+  // Only snapshot if there isn't already a stashed state (user switching
+  // between industries shouldn't overwrite their original pre-industry state).
+  if (!INDUSTRY_PREV.sources) {
+    INDUSTRY_PREV.sources   = new Set(S.sources);
+    INDUSTRY_PREV.countries = [...S.countries];
+    INDUSTRY_PREV.level     = S.level;
+  }
+
   // Auto-enable the sources this industry depends on (so its nodes actually
-  // render in the graph — without this, sources left off by default would
-  // show all curated picks as "not in data")
+  // render in the graph). required_sources should be kept minimal — only the
+  // sources that are genuinely mandatory for the target+hop indicators to
+  // resolve. Optional context sources stay under the user's control.
   if (o.required_sources) {
     let changed = false;
     o.required_sources.forEach(s => {
@@ -4562,38 +4693,249 @@ async function loadIndustryView(industry){
   _populatePredictorFromOntology(o);
 }
 
-function _renderIndustryTable(o, curatedSet){
+// ── NEW INDUSTRY PANEL: country × commodity × view-mode pickers ──
+function _renderIndustryTable(o /* unused; kept for call-site compatibility */){
   const panel = document.getElementById('industry-panel');
   if (!panel) return;
   panel.style.display = 'flex';
-  const rowsHtml = (arr) => arr.map(x => {
-    const found = _ontologyIndicatorExists(x.label);
-    return `<div class="ind-row ${found ? '' : 'missing'}">
-      <div class="ind-lbl">${x.label}${found ? '' : ' <span class="ind-warn">[not in data]</span>'}</div>
-      <div class="ind-rat">${x.rationale}</div>
-    </div>`;
-  }).join('');
-
+  // Render the static shell (controls + tabs + empty body). The body is
+  // filled by _renderIndustryView() below, which runs on every picker change.
+  const countries = (S.meta?.countries || []);
+  const countryOpts = countries.map(iso =>
+    `<option value="${iso}" ${iso === IND_VIEW.country ? 'selected' : ''}>${CNAME[iso] || iso}</option>`
+  ).join('');
+  const commodityOpts = Object.entries(MINING_COMMODITIES).map(([k, c]) =>
+    `<option value="${k}" ${k === IND_VIEW.commodity ? 'selected' : ''}>${c.name}</option>`
+  ).join('');
   panel.innerHTML = `
     <div class="ind-hdr">
-      <div class="ind-hdr-title">${o.name}</div>
+      <div class="ind-hdr-title">Metals &amp; Minerals</div>
       <div class="ind-hdr-close" onclick="closeIndustryView()">\u2715</div>
     </div>
-    <div class="ind-intro">${o.description}</div>
-    <div class="ind-sec"><div class="ind-sec-hdr">Target output</div>
-      <div class="ind-row curated-tgt">
-        <div class="ind-lbl">${o.target.label}</div>
-        <div class="ind-rat">${o.target.rationale}</div>
+    <div class="ind-controls">
+      <div class="ind-ctrl">
+        <label>Country</label>
+        <select id="ind-country" onchange="_onIndCountry(this.value)">${countryOpts}</select>
+      </div>
+      <div class="ind-ctrl">
+        <label>Commodity</label>
+        <select id="ind-commodity" onchange="_onIndCommodity(this.value)">${commodityOpts}</select>
       </div>
     </div>
-    <div class="ind-sec"><div class="ind-sec-hdr">Hop 1 \u2014 direct inputs</div>${rowsHtml(o.hop_1_direct_inputs)}</div>
-    <div class="ind-sec"><div class="ind-sec-hdr">Hop 2 \u2014 demand drivers</div>${rowsHtml(o.hop_2_demand_drivers)}</div>
-    <div class="ind-sec"><div class="ind-sec-hdr">Hop 3 \u2014 macro drivers</div>${rowsHtml(o.hop_3_macro_drivers)}</div>
-    <div class="ind-hint">Curated picks. Rows marked [not in data] are suggested but not yet loaded for your current country/window.</div>
+    <div class="ind-tabs">
+      <div class="ind-tab ${IND_VIEW.mode==='demand'?'active':''}" onclick="_setIndMode('demand')">DEMAND</div>
+      <div class="ind-tab ${IND_VIEW.mode==='supply'?'active':''}" onclick="_setIndMode('supply')">SUPPLY</div>
+      <div class="ind-tab ${IND_VIEW.mode==='price'?'active':''}"  onclick="_setIndMode('price')">PRICE</div>
+    </div>
+    <div class="ind-body" id="ind-body"></div>
+  `;
+  _renderIndustryView();
+}
+
+function _onIndCountry(v){ IND_VIEW.country = v; _renderIndustryView(); }
+function _onIndCommodity(v){ IND_VIEW.commodity = v; _renderIndustryView(); }
+function _setIndMode(m){
+  IND_VIEW.mode = m;
+  document.querySelectorAll('.ind-tab').forEach(t => {
+    t.classList.toggle('active', t.textContent.trim().toLowerCase() === m);
+  });
+  _renderIndustryView();
+}
+
+// Resolve the target-indicator label for a given country/commodity/view
+function _resolveIndustryTarget(iso, commKey, mode){
+  const c = MINING_COMMODITIES[commKey];
+  if (!c) return null;
+  const inds = S.meta?.indicator_sources || {};
+  const has = lbl => !!inds[lbl];
+  if (mode === 'price') {
+    return c.pinkKey && has(c.pinkKey) ? c.pinkKey : null;
+  }
+  if (mode === 'supply') {
+    if (iso === 'USA' && c.usgs) {
+      const u = `US ${c.usgs} Primary Production (USGS)`;
+      if (has(u)) return u;
+    }
+    return c.bgsKey && has(c.bgsKey) ? c.bgsKey : null;
+  }
+  if (mode === 'demand') {
+    if (iso === 'USA' && c.usgs) {
+      const u = `US ${c.usgs} Apparent Consumption (USGS)`;
+      if (has(u)) return u;
+    }
+    // Non-US: use HS-specific Imports as the single best demand proxy
+    if (c.hs) {
+      const i = `${c.name} Imports (HS ${c.hs}, USD)`;
+      if (has(i)) return i;
+    }
+    return null;
+  }
+  return null;
+}
+
+function _renderIndustryView(){
+  const body = document.getElementById('ind-body');
+  if (!body) return;
+  const { country, commodity, mode } = IND_VIEW;
+  const targetLabel = _resolveIndustryTarget(country, commodity, mode);
+  if (!targetLabel) {
+    body.innerHTML = _industryEmptyState(country, commodity, mode);
+    return;
+  }
+  const cname = CNAME[country] || country;
+  const commName = MINING_COMMODITIES[commodity]?.name || commodity;
+
+  // Ensure single-country USA/etc. is selected so the hop engine uses the
+  // right correlation set. Don't disturb this on every render — only when
+  // the user's country differs.
+  const needSwitch = (S.countries.length !== 1 || S.countries[0] !== country);
+  const finishRender = () => {
+    // Find the target node in the currently-rendered graph
+    const t = (S.gNodes || []).find(n => {
+      const l = n.label || (n.id || '').replace(/^[A-Z]{3}::/, '');
+      return l === targetLabel;
+    });
+    // Top correlated drivers = hop-1 neighbours of this node
+    let drivers = [];
+    let seriesYrs = [], seriesVs = [];
+    if (t) {
+      if (!t.label) t.label = t.id;
+      if (!t.country) t.country = country;
+      // Load hop data on demand if not already selected
+      const ae = (typeof getAE === 'function') ? getAE() : [];
+      if (typeof _buildHopData === 'function') {
+        const hd = _buildHopData(t.id, ae);
+        drivers = (hd[1] || []).slice(0, 6);
+      }
+      // Historical series + forecast for target node
+      const raw = _getTargetSeries(country, targetLabel);
+      if (raw) { seriesYrs = raw.years; seriesVs = raw.values; }
+    }
+    body.innerHTML = `
+      <div class="ind-target">
+        <div class="ind-target-sub">${mode.toUpperCase()} target</div>
+        <div class="ind-target-lbl">${targetLabel}</div>
+        <div class="ind-target-ctx">${cname} \u00b7 ${commName}</div>
+        <svg id="ind-spark" width="100%" height="80" style="margin-top:6px"></svg>
+      </div>
+      <div class="ind-sec"><div class="ind-sec-hdr">Top correlated drivers (hop 1)</div>
+        ${drivers.length ? drivers.map(d => `
+          <div class="ind-row">
+            <div class="ind-lbl">${d.othLbl}${d.othCountry && d.othCountry !== country ? ` <span class="ind-ctx-mini">(${CNAME[d.othCountry] || d.othCountry})</span>` : ''}</div>
+            <div class="ind-rat">
+              <span class="ind-r ${d.corr >= 0 ? 'pos' : 'neg'}">r = ${d.corr >= 0 ? '+' : ''}${d.corr.toFixed(2)}</span>
+              \u00b7 strength ${(d.strength || Math.abs(d.corr)).toFixed(2)}
+            </div>
+          </div>
+        `).join('') : '<div class="ind-hint" style="padding:10px 14px">No correlated drivers found for this selection in the current year window.</div>'}
+      </div>
+      <div class="ind-actions">
+        <div class="ind-btn primary" onclick="_industryRunForecast()">RUN FORECAST</div>
+      </div>
+    `;
+    // Draw the historical+forecast sparkline
+    if (seriesYrs.length) _drawIndustrySpark(seriesYrs, seriesVs, country, targetLabel);
+  };
+
+  if (needSwitch) {
+    S.countries = [country];
+    if (typeof setLevel === 'function' && S.level !== 'country') {
+      setLevel('country').then(() => {
+        if (typeof applyCountryChange === 'function') {
+          applyCountryChange().then(() => setTimeout(finishRender, 400));
+        } else setTimeout(finishRender, 400);
+      });
+    } else if (typeof applyCountryChange === 'function') {
+      applyCountryChange().then(() => setTimeout(finishRender, 400));
+    } else setTimeout(finishRender, 200);
+  } else {
+    setTimeout(finishRender, 50);
+  }
+}
+
+function _getTargetSeries(iso, label){
+  // Pull historical values for this country×indicator from the forecast
+  // payload (which includes hist values for plotting)
+  const fc = S.fc?.[iso]?.[label];
+  if (fc) return { years: [...(fc.years || []), ...(fc.fc_years || [])],
+                   values: [...(fc.values || []), ...(fc.fc_values || [])] };
+  return null;
+}
+
+function _drawIndustrySpark(yrs, vs, iso, label){
+  const svg = document.getElementById('ind-spark'); if (!svg) return;
+  const width = svg.clientWidth || 380, height = 80;
+  const pad = 4;
+  const xs = yrs.map((y,i) => pad + i * (width - 2*pad) / Math.max(yrs.length-1, 1));
+  const min = Math.min(...vs), max = Math.max(...vs);
+  const ys = vs.map(v => height - pad - (max === min ? height/2 : (v - min) / (max - min) * (height - 2*pad)));
+  const d = xs.map((x,i) => `${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  // Split hist vs forecast by HIST_END cutoff (2025 in our pipeline)
+  const histEnd = (S.meta?.hist_range || [2000,2023])[1];
+  const cutoffIdx = yrs.findIndex(y => y > histEnd);
+  const histD = cutoffIdx <= 0 ? d : xs.slice(0, cutoffIdx+1).map((x,i) => `${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const fcD   = cutoffIdx <= 0 ? '' : xs.slice(cutoffIdx).map((x,i) => `${i===0?'M':'L'}${x.toFixed(1)},${ys[cutoffIdx+i].toFixed(1)}`).join(' ');
+  svg.innerHTML = `
+    <path d="${histD}" stroke="var(--ph)" stroke-width="1.5" fill="none"/>
+    ${fcD ? `<path d="${fcD}" stroke="var(--ph)" stroke-width="1.5" fill="none" stroke-dasharray="3,2" opacity="0.7"/>` : ''}
+    <text x="${pad}" y="${height-1}" fill="var(--mu)" font-size="7">${yrs[0]}</text>
+    <text x="${width-pad}" y="${height-1}" text-anchor="end" fill="var(--mu)" font-size="7">${yrs[yrs.length-1]}</text>
   `;
 }
-function closeIndustryView(){
+
+function _industryEmptyState(iso, commKey, mode){
+  const commName = MINING_COMMODITIES[commKey]?.name || commKey;
+  const cname = CNAME[iso] || iso;
+  const reasons = {
+    demand: iso === 'USA' ? 'No USGS consumption data for this commodity' :
+            `Country-specific demand is only published for the USA (via USGS). For ${cname}, switch to SUPPLY or PRICE, or use HS-level imports/exports from the graph.`,
+    supply: `No BGS or USGS production data for ${commName} in ${cname}. Country may not be a producer.`,
+    price:  `No Pink Sheets global price series for ${commName}.`
+  };
+  return `<div class="ind-empty">
+    <div class="ind-empty-title">No ${mode} target for this selection</div>
+    <div class="ind-empty-body">${reasons[mode] || 'Data not available.'}</div>
+  </div>`;
+}
+
+function _industryRunForecast(){
+  // Jump to the Predictor: select the target node + auto-populate hop-1 inputs
+  const { country, commodity, mode } = IND_VIEW;
+  const targetLabel = _resolveIndustryTarget(country, commodity, mode);
+  if (!targetLabel) return;
+  const t = (S.gNodes || []).find(n => {
+    const l = n.label || (n.id || '').replace(/^[A-Z]{3}::/, '');
+    return l === targetLabel;
+  });
+  if (!t) return;
+  if (!t.label) t.label = t.id;
+  if (!t.country) t.country = country;
+  selectNode(t);
+  setTimeout(() => { if (typeof predFromNode === 'function') predFromNode(); }, 400);
+}
+async function closeIndustryView(){
   const p = document.getElementById('industry-panel'); if (p) p.style.display = 'none';
+  // Restore the user's source/country/level selection that was in place
+  // before loadIndustryView() mutated them. Never touches the predictor
+  // output — user might want to keep forecasting after closing the panel.
+  if (INDUSTRY_PREV.sources) {
+    S.sources = INDUSTRY_PREV.sources;
+    if (INDUSTRY_PREV.countries) S.countries = INDUSTRY_PREV.countries;
+    if (INDUSTRY_PREV.level && typeof setLevel === 'function' && S.level !== INDUSTRY_PREV.level) {
+      await setLevel(INDUSTRY_PREV.level);
+    }
+    if (typeof applyCountryChange === 'function') await applyCountryChange();
+    if (typeof _syncSrcCheckboxes === 'function') _syncSrcCheckboxes();
+    S._srcConn = null;
+    if (typeof _recomputeSrcVisibility === 'function') _recomputeSrcVisibility();
+    if (typeof buildNodeList === 'function') buildNodeList();
+    if (typeof updateMeta === 'function') updateMeta();
+    if (typeof renderNet === 'function') renderNet();
+    // Clear the stash so the next industry-view open takes a fresh snapshot
+    INDUSTRY_PREV.sources = null;
+    INDUSTRY_PREV.countries = null;
+    INDUSTRY_PREV.level = null;
+  }
 }
 function _ontologyIndicatorExists(label){
   // Check the full indicator registry rather than the currently-rendered
