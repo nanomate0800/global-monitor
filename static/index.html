@@ -41,6 +41,9 @@ header{flex-shrink:0;display:flex;align-items:stretch;height:42px;border-bottom:
 .yl{font-size:8px;color:var(--mu);}
 .yv{font-size:9px;color:var(--ph);min-width:32px;text-align:center;font-weight:500;}
 input[type=range].yslider{width:60px;height:2px;accent-color:var(--ph);cursor:pointer;}
+.year-window-select{background:var(--bg);color:var(--ph);border:1px solid var(--b2);border-radius:2px;padding:3px 8px;font-size:9px;font-family:'DM Mono',monospace;cursor:pointer;}
+.year-window-select:focus{outline:none;border-color:var(--ph);}
+.year-window-select:hover{border-color:var(--mu2);}
 .hmode{display:flex;align-items:stretch;}
 .hmbtn{padding:0 13px;display:flex;align-items:center;gap:6px;font-size:8px;letter-spacing:.09em;color:var(--mu2);cursor:pointer;border-right:1px solid var(--b1);transition:all .12s;user-select:none;}
 .hmbtn:hover{color:var(--tx);}
@@ -646,12 +649,13 @@ tr.hi td{color:var(--tx);}
     </div>
   </div>
   <div class="hyear">
-    <span class="yl">FROM</span>
-    <span class="yv" id="yv-s">2000</span>
-    <input type="range" class="yslider" id="ys-s" min="2000" max="2023" value="2000" oninput="onYear()">
-    <input type="range" class="yslider" id="ys-e" min="2001" max="2038" value="2023" oninput="onYear()">
-    <span class="yv" id="yv-e">2023</span>
-    <span class="yl">TO</span>
+    <span class="yl">YEAR WINDOW</span>
+    <select id="year-window-select" class="year-window-select" onchange="onYearWindowSelect(this.value)">
+      <!-- Options populated dynamically in init() from S.meta.year_windows so
+           the user can only pick ranges the build pipeline actually produced.
+           Previously there were two continuous sliders which could land on
+           invalid combos like 2000-2024, producing zero correlations. -->
+    </select>
     <span id="fc-badge"></span>
   </div>
   <div class="hmode">
@@ -1636,6 +1640,7 @@ async function loadData(prog){
   // Now that meta + correlations are loaded, sync checkboxes + compute initial picker visibility
   if(typeof _syncSrcCheckboxes==='function')_syncSrcCheckboxes();
   if(typeof _recomputeSrcVisibility==='function')_recomputeSrcVisibility();
+  if(typeof populateYearWindowSelect==='function')populateYearWindowSelect();
   prog(100,'Ready');
 }
 async function loadCorr(iso3,y1,y2){
@@ -1902,19 +1907,34 @@ function getCtrd(){
   });
   return result;
 }
-async function onYear(){
-  const s=parseInt($('ys-s').value),e=parseInt($('ys-e').value);
-  if(e<=s)$('ys-e').value=Math.min(s+1,2038);
-  S.yS=parseInt($('ys-s').value);S.yE=parseInt($('ys-e').value);
-  $('yv-s').textContent=S.yS;$('yv-e').textContent=S.yE;
-  const isFC=S.yE>2023;$('fc-badge').textContent=isFC?`FORECAST 2024–${S.yE}`:'';
-  // Reload correlations for the new year window
-  // In global view, all 10 country datasets are rendered — load them all
-  const toLoad=S.level==='global'?[...(S.meta?.countries||[]),'GLOBAL']:[...S.countries,'GLOBAL'];
-  for(const iso3 of toLoad){
-    await loadCorr(iso3,S.yS,S.yE);
+// Year-window dropdown — replaces the old two-slider UI so users can only
+// pick from the 10 pre-computed correlation windows. Free-range slider
+// previously produced empty graphs for any combination not in YEAR_WINDOWS.
+function populateYearWindowSelect(){
+  const sel = document.getElementById('year-window-select'); if (!sel) return;
+  const wins = S.meta?.year_windows || [[2000,2023]];
+  sel.innerHTML = wins.map(([s,e]) => {
+    const isFC = e > 2023;
+    const label = isFC ? `${s}\u2013${e} (forecast)` : `${s}\u2013${e}`;
+    const val = `${s}_${e}`;
+    const selAttr = (s === S.yS && e === S.yE) ? 'selected' : '';
+    return `<option value="${val}" ${selAttr}>${label}</option>`;
+  }).join('');
+}
+
+async function onYearWindowSelect(val){
+  const [s, e] = val.split('_').map(Number);
+  if (!s || !e) return;
+  S.yS = s; S.yE = e;
+  const isFC = S.yE > 2023;
+  $('fc-badge').textContent = isFC ? `FORECAST 2024\u2013${S.yE}` : '';
+  // Reload correlations for the new window — in global view we need every
+  // country's subset; in country view just the selected countries.
+  const toLoad = S.level === 'global' ? [...(S.meta?.countries || []), 'GLOBAL'] : [...S.countries, 'GLOBAL'];
+  for (const iso3 of toLoad) {
+    await loadCorr(iso3, S.yS, S.yE);
   }
-  updateMeta();await renderNet();
+  updateMeta(); await renderNet();
 }
 function updateMeta(){
   if(!S.meta)return;
@@ -2052,6 +2072,33 @@ function getNodes(){
         });
       });
     }
+    // ── Inject selected-node partners regardless of source filter ──
+    // Without this, selecting USA GDP Growth (WB) would hide its correlations
+    // with e.g. USGS/DoingBusiness/Fraser indicators because those sources
+    // are off by default. For 1a/1b, the selected node must always be able
+    // to display its hop-1 neighbours even if their source isn't active.
+    if (S.selNode) {
+      const selId = S.selNode.id || '';
+      const m = selId.match(/^([A-Z]{3})::(.+)$/);
+      const selIso = m ? m[1] : (S.selNode.country || null);
+      const selInd = m ? m[2] : (S.selNode.label || S.selNode.id);
+      if (selIso && selInd) {
+        const key = `${selIso}_${S.yS}_${S.yE}`;
+        (S.corr[key] || []).forEach(e => {
+          if (!_passThr(e)) return;
+          if (e.source !== selInd && e.target !== selInd) return;
+          const partnerInd = e.source === selInd ? e.target : e.source;
+          const nid = `${selIso}::${partnerInd}`;
+          if (existingIds.has(nid)) return;
+          const cat = catLk[partnerInd] || 'Other';
+          const nmNode = (S.meta.node_meta[selIso] || []).find(n => n.id === partnerInd);
+          const iSrc = nmNode?.source || _indSrc[partnerInd] || 'UNKNOWN';
+          all.push({id: nid, label: partnerInd, country: selIso, category: cat,
+                    degree: 1, centrality: 0, source: iSrc, _selPartner: true});
+          existingIds.add(nid);
+        });
+      }
+    }
     // Neighbour expansion: when EXP.RELATION is ON, show connected nodes from other sources
     if(S.expandRel&&all.length>0){
       _expandNeighbors(all,existingIds,S.meta.countries,true).forEach(n=>{
@@ -2148,15 +2195,43 @@ function getCurEdges(){
     });
     // Within-country edges: cap per country so no single country can crowd out others
     const perCtryCap=Math.max(30,Math.floor((800-edges.length)/Math.max(S.meta.countries.length,1)));
+    // Track which edges we've added so the selected-node injection below can
+    // dedupe without double-adding anything already included by the cap.
+    const seen = new Set();
     S.meta.countries.forEach(iso3=>{
       const key=`${iso3}_${S.yS}_${S.yE}`;
       const cEdges=(S.corr[key]||[]).filter(e=>_passThr(e))
         .sort((a,b)=>b.strength-a.strength)
         .slice(0,perCtryCap);
       cEdges.forEach(e=>{
+        seen.add(`${iso3}_${e.id}`);
         edges.push({...e,id:`${iso3}_${e.id}`,source:`${iso3}::${e.source}`,target:`${iso3}::${e.target}`,country:iso3,within:true});
       });
     });
+    // ── Inject selected-node edges regardless of per-country cap ──
+    // Without this, a selected node whose edges ranked below the top-N for its
+    // country ends up with zero edges in the rendered graph, and the opacity
+    // logic below hides EVERYTHING (because connSel contains only the selNode
+    // itself). That's issue 1a/1b: selecting a node makes all edges disappear.
+    if (S.selNode) {
+      const selId = S.selNode.id || '';
+      const m = selId.match(/^([A-Z]{3})::(.+)$/);
+      const iso3 = m ? m[1] : (S.selNode.country || null);
+      const indLabel = m ? m[2] : (S.selNode.label || S.selNode.id);
+      if (iso3 && indLabel) {
+        const key = `${iso3}_${S.yS}_${S.yE}`;
+        (S.corr[key] || []).forEach(e => {
+          if (e.source !== indLabel && e.target !== indLabel) return;
+          if (!_passThr(e)) return;
+          const edgeKey = `${iso3}_${e.id}`;
+          if (seen.has(edgeKey)) return;
+          seen.add(edgeKey);
+          edges.push({...e, id: edgeKey,
+            source: `${iso3}::${e.source}`, target: `${iso3}::${e.target}`,
+            country: iso3, within: true});
+        });
+      }
+    }
     return edges;
   }
   if(S.level==='country'){
