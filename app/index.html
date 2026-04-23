@@ -4152,7 +4152,16 @@ async function predRun(){
   area.innerHTML='<div class="pd-status" id="boot-progress">Bootstrap 0%...</div>';
   const ci90=await _asyncBootstrap(X2,outArr,lam,fcX2);
 
-  predDrawChart(area,{histYears:commonYrs,histActual:outArr,histFitted:fittedOut,fcYears:fcYrs,fcValues:fcOut,ci90,
+  // Chart should show the OUTPUT's full history (not just the training
+  // overlap), so the x-axis doesn't appear to "start in 2010" just because
+  // one input (e.g. USGS data capped at 2015, or a DB score starting 2003)
+  // narrows commonYrs. Fitted line stays restricted to commonYrs since the
+  // regression is only defined there; chart uses defined() to skip nulls.
+  const fullYears  = outSer.map(p => p.y);
+  const fullActual = outSer.map(p => p.v);
+  const _fitByYr   = new Map(commonYrs.map((y, i) => [y, fittedOut[i]]));
+  const fullFitted = fullYears.map(y => _fitByYr.has(y) ? _fitByYr.get(y) : null);
+  predDrawChart(area,{histYears:fullYears,histActual:fullActual,histFitted:fullFitted,fcYears:fcYrs,fcValues:fcOut,ci90,
     outLabel:outItem.ind,outIso3:outItem.iso3,n:commonYrs.length,nPred:X2[0].length,methodLabel:'Ridge Regression (2-stage)'});
   predShowResults();
 }
@@ -4239,21 +4248,35 @@ function predDrawChart(area,{histYears,histActual,histFitted,fcYears,fcValues,ci
       const hex=band.color||'#888';
       g.append('path').datum(band.ci).attr('d',d3.area().x((_,i)=>xSc(fcYears[i])).y0(d=>ySc(d.lo)).y1(d=>ySc(d.hi)).curve(d3.curveMonotoneX))
         .style('fill',hex).style('fill-opacity',0.08).style('stroke',hex).style('stroke-opacity',0.35).style('stroke-width',0.8);
-      // Method forecast line
-      const connY2=[histFitted[histFitted.length-1],...band.fcValues];const connX2=[histYears[histYears.length-1],...fcYears];
+      // Method forecast line — use last valid fitted point for continuity
+      let _li = histFitted.length-1;
+      while(_li>=0 && (histFitted[_li]==null || !isFinite(histFitted[_li]))) _li--;
+      const _sY = _li>=0 ? histFitted[_li] : histActual[histActual.length-1];
+      const _sX = _li>=0 ? histYears[_li]  : histYears[histYears.length-1];
+      const connY2=[_sY,...band.fcValues];const connX2=[_sX,...fcYears];
       g.append('path').datum(connY2).attr('d',d3.line().x((_,i)=>xSc(connX2[i])).y(d=>ySc(d)).curve(d3.curveMonotoneX))
         .style('fill','none').style('stroke',hex).style('stroke-opacity',0.5).style('stroke-width',1).style('stroke-dasharray','3,3');
     });
   }
-  // Fitted line
-  g.append('path').datum(histFitted).attr('d',d3.line().x((_,i)=>xSc(histYears[i])).y(d=>ySc(d)).curve(d3.curveMonotoneX))
+  // Fitted line — skip null entries (happens when Ridge's training overlap
+  // is narrower than the output's full history; we still plot the full
+  // output range as dots but only draw fitted where the model is defined)
+  g.append('path').datum(histFitted).attr('d',d3.line()
+      .defined(d=>d!=null&&isFinite(d))
+      .x((_,i)=>xSc(histYears[i])).y(d=>ySc(d)).curve(d3.curveMonotoneX))
     .style('fill','none').style('stroke','rgba(200,240,96,0.4)').style('stroke-width',1.5);
   // Actual dots
   g.selectAll('.pd').data(histYears).enter().append('circle').attr('class','pd')
     .attr('cx',(_,i)=>xSc(histYears[i])).attr('cy',(_,i)=>ySc(histActual[i])).attr('r',2.5).style('fill','var(--mu2)').style('stroke','none');
-  // Forecast line
+  // Forecast line — connect from last *valid* fitted point (which may be
+  // earlier than histYears[last] if the training overlap ends before the
+  // output's last year)
   if(fcValues.length){
-    const connY=[histFitted[histFitted.length-1],...fcValues];const connX=[histYears[histYears.length-1],...fcYears];
+    let lastFitIdx = histFitted.length-1;
+    while(lastFitIdx>=0 && (histFitted[lastFitIdx]==null || !isFinite(histFitted[lastFitIdx]))) lastFitIdx--;
+    const connStartY = lastFitIdx>=0 ? histFitted[lastFitIdx] : histActual[histActual.length-1];
+    const connStartX = lastFitIdx>=0 ? histYears[lastFitIdx]  : histYears[histYears.length-1];
+    const connY=[connStartY,...fcValues];const connX=[connStartX,...fcYears];
     g.append('path').datum(connY).attr('d',d3.line().x((_,i)=>xSc(connX[i])).y(d=>ySc(d)).curve(d3.curveMonotoneX))
       .style('fill','none').style('stroke','var(--ph)').style('stroke-width',1.8).style('stroke-dasharray','5,3');
     const lastV=fcValues[fcValues.length-1],lastY=fcYears[fcYears.length-1];
