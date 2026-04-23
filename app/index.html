@@ -272,7 +272,7 @@ tr.hi td{color:var(--tx);}
 .pd-add-row{display:flex;gap:2px;margin:2px 5px 3px;}
 .pd-add-btn{flex:1;padding:3px 5px;border:1px dashed var(--b2);color:var(--mu);font-size:8px;text-align:center;cursor:pointer;border-radius:2px;}
 .pd-add-btn:hover{border-color:var(--mu2);color:var(--mu2);}
-.pd-ctrl-col{width:120px;flex-shrink:0;display:flex;flex-direction:column;padding:5px 8px;gap:3px;}
+.pd-ctrl-col{flex:0.8;min-width:110px;display:flex;flex-direction:column;padding:5px 8px;gap:3px;}
 .pd-ctrl-lbl{font-size:8px;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);}
 .pd-ctrl-sel{width:100%;background:var(--s3);border:1px solid var(--b2);color:var(--tx);font-size:8.5px;padding:3px 5px;border-radius:2px;accent-color:var(--ph);}
 .pd-ctrl-sel:focus{outline:none;border-color:var(--ph);}
@@ -921,8 +921,8 @@ tr.hi td{color:var(--tx);}
             <div class="pd-ctrl-col">
               <div class="pd-ctrl-lbl">METHOD</div>
               <select class="pd-ctrl-sel" id="pd-method" onchange="PRED.method=this.value">
+                <option value="arima" selected>ARIMA (pre-built)</option>
                 <option value="ridge">Ridge Regression</option>
-                <option value="arima">ARIMA (pre-built)</option>
                 <option value="rw">Random Walk</option>
                 <option value="ensemble">Total View (All Methods)</option>
               </select>
@@ -1019,17 +1019,17 @@ tr.hi td{color:var(--tx);}
               <div class="pd-add-btn" onclick="predPickFromNet('outputs')">+ Network</div>
             </div>
           </div>
-          <div class="pd-ctrl-col" style="width:100px">
+          <div class="pd-ctrl-col">
             <div class="pd-ctrl-lbl">METHOD</div>
             <select class="pd-ctrl-sel pd-method-sel" id="pd-method2"
                     onchange="PRED.method=this.value;_updateMethodHint(this.value)"
                     onmouseover="_updateMethodHint(this.value)">
+              <option value="arima" selected title="ARIMA: pre-built autoregressive forecasts. Uses each indicator's own history to project forward (no cross-indicator influence).">ARIMA</option>
               <option value="ridge"    title="Ridge regression: 2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.">Ridge</option>
-              <option value="arima"    title="ARIMA: pre-built autoregressive forecasts. Uses each indicator's own history to project forward (no cross-indicator influence).">ARIMA</option>
               <option value="rw"       title="Random Walk with drift: assumes the indicator continues at its average historical pace. Useful as a no-skill baseline.">Random Walk</option>
               <option value="ensemble" title="Total View: runs Ridge, ARIMA and Random Walk and overlays them so you can see the spread of forecasts.">Total View</option>
             </select>
-            <div class="pd-method-hint" id="pd-method-hint">2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.</div>
+            <div class="pd-method-hint" id="pd-method-hint">Pre-built autoregressive forecast. Uses each indicator's own history to project forward (no cross-indicator influence).</div>
             <div class="pd-ctrl-lbl">HORIZON</div>
             <div class="pd-hrow">
               <div class="pd-hbtn" onclick="predSetHorizon(1,this)">1yr</div>
@@ -3532,7 +3532,7 @@ function _commonYrs(sArr){
 }
 
 // ── PREDICTOR (unified What-If + Forecast) ──
-const PRED={inputs:[],intermediates:[],outputs:[],horizon:5,method:'ridge',scenario:'base',_role:null,_candidates:null};
+const PRED={inputs:[],intermediates:[],outputs:[],horizon:5,method:'arima',scenario:'base',_role:null,_candidates:null};
 
 // Per-method short explainer shown beneath the method dropdown
 const PRED_METHOD_HINTS = {
@@ -3711,8 +3711,8 @@ function predAddEntry(lane,entry){
 }
 function predRemove(lane,idx){PRED[lane].splice(idx,1);predRender();}
 function predClear(){
-  PRED.inputs=[];PRED.intermediates=[];PRED.outputs=[];PRED.horizon=5;PRED.method='ridge';PRED._candidates=null;
-  const msel=$('pd-method2');if(msel)msel.value='ridge';
+  PRED.inputs=[];PRED.intermediates=[];PRED.outputs=[];PRED.horizon=5;PRED.method='arima';PRED._candidates=null;
+  const msel=$('pd-method2');if(msel)msel.value='arima';
   // Highlight the 5yr button (index 2) — was 3yr (index 1) before user
   // requested 5yr as default to match the typical mid-term forecasting window
   $('pgtab-predictor')?.querySelectorAll('.pd-hbtn').forEach((b,i)=>b.classList.toggle('on',i===2));
@@ -3919,6 +3919,9 @@ function predGetR(va,vb){
 // ── Predictor: chart resize on panel drag ──
 let _lastPredParams=null;
 function _predResizeChart(){
+  // Redraw the flow diagram whenever the panel resizes — its SVG is drawn
+  // once at clientWidth and otherwise stays at the original size.
+  if(typeof predDrawFlow==='function')predDrawFlow();
   if(!_lastPredParams)return;
   const area=$('pd-chart-area2');
   if(area&&area.querySelector('svg'))predDrawChart(area,_lastPredParams);

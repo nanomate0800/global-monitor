@@ -367,10 +367,17 @@ for iso3 in COUNTRIES:
 
         if arimax_name:
             n_arimax += 1
+        # Forecast steps are ALWAYS the N years immediately after this
+        # series's last actual year — not the global HIST_END. Previously
+        # every series was labelled fc_years=[2026..2035] even when the
+        # series ended in 2015 (USGS), creating a fake 10-year void on
+        # the chart between last actual and first "forecast".
+        _fc_start = int(years[-1]) + 1
+        fc_years_series = list(range(_fc_start, _fc_start + FC_HORIZON))
         all_forecasts[iso3][ind_name] = {
             'years':       years,
             'values':      [_f(v) for v in vals.tolist()],
-            'fc_years':    FC_YEARS,
+            'fc_years':    fc_years_series,
             'fc_values':   [_f(v) for v in fc],
             'fc_lo':       [_f(v) for v in lo],
             'fc_hi':       [_f(v) for v in hi],
