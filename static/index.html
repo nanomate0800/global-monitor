@@ -4034,12 +4034,13 @@ async function predRun(){
     // Compute ensemble: average forecasts, union of all CIs
     const ensembleFc=Array.from({length:h},(_,i)=>{const vals=results.map(r=>r.fcValues[i]).filter(v=>v!=null&&isFinite(v));return vals.reduce((a,b)=>a+b,0)/vals.length;});
     const ensembleCi=Array.from({length:h},(_,i)=>{const allLo=results.map(r=>r.ci[i]?.lo).filter(v=>v!=null&&isFinite(v));const allHi=results.map(r=>r.ci[i]?.hi).filter(v=>v!=null&&isFinite(v));return{lo:Math.min(...allLo),hi:Math.max(...allHi)};});
-    // Build totalBands: each method's forecast range for gradient rendering
-    const totalBands=results.map(r=>({method:r.method,fcValues:r.fcValues,ci:r.ci,color:r.color}));
+    // Render as a single consolidated range: ensemble mean + union CI.
+    // Previously we overlaid each individual method's forecast line and CI
+    // on top of each other — visually noisy. Now the chart shows one band.
     const histYears=outSer.map(p=>p.y);const histActual=outSer.map(p=>p.v);
     const lastYr=histYears[histYears.length-1];
     const fcYears=Array.from({length:h},(_,i)=>lastYr+1+i);
-    predDrawChart(area,{histYears,histActual,histFitted:histActual,fcYears,fcValues:ensembleFc,ci90:ensembleCi,outLabel:outItem.ind,outIso3:outItem.iso3,n:histYears.length,nPred:results.length,methodLabel:'Ensemble (Total View)',totalBands});
+    predDrawChart(area,{histYears,histActual,histFitted:histActual,fcYears,fcValues:ensembleFc,ci90:ensembleCi,outLabel:outItem.ind,outIso3:outItem.iso3,n:histYears.length,nPred:results.length,methodLabel:`Ensemble (avg of ${results.length} methods)`});
     predShowResults();return;
   }
 
