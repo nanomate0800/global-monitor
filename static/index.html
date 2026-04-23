@@ -924,7 +924,6 @@ tr.hi td{color:var(--tx);}
                 <option value="ridge">Ridge Regression</option>
                 <option value="arima">ARIMA (pre-built)</option>
                 <option value="rw">Random Walk</option>
-                <option value="extrap">Linear Extrapolation</option>
                 <option value="ensemble">Total View (All Methods)</option>
               </select>
               <div class="pd-ctrl-lbl">HORIZON</div>
@@ -1028,8 +1027,7 @@ tr.hi td{color:var(--tx);}
               <option value="ridge"    title="Ridge regression: 2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.">Ridge</option>
               <option value="arima"    title="ARIMA: pre-built autoregressive forecasts. Uses each indicator's own history to project forward (no cross-indicator influence).">ARIMA</option>
               <option value="rw"       title="Random Walk with drift: assumes the indicator continues at its average historical pace. Useful as a no-skill baseline.">Random Walk</option>
-              <option value="extrap"   title="Linear extrapolation: fits a straight line through the last 10 years and projects it forward. Simple but ignores curvature.">Extrapolation</option>
-              <option value="ensemble" title="Total View: runs all four methods and overlays them so you can see the spread of forecasts.">Total View</option>
+              <option value="ensemble" title="Total View: runs Ridge, ARIMA and Random Walk and overlays them so you can see the spread of forecasts.">Total View</option>
             </select>
             <div class="pd-method-hint" id="pd-method-hint">2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.</div>
             <div class="pd-ctrl-lbl">HORIZON</div>
@@ -3541,8 +3539,7 @@ const PRED_METHOD_HINTS = {
   ridge:    '2-stage linear model with L2 regularisation. Best when you have multiple correlated inputs.',
   arima:    'Pre-built autoregressive forecast. Uses each indicator\u2019s own history to project forward (no cross-indicator influence).',
   rw:       'Random walk with drift. Assumes the indicator continues at its average historical pace. Useful as a no-skill baseline.',
-  extrap:   'Linear extrapolation. Fits a straight line through the last 10 years and projects it forward. Simple but ignores curvature.',
-  ensemble: 'Total view. Runs all four methods and overlays them so you can see the spread of forecasts.',
+  ensemble: 'Total view. Runs Ridge, ARIMA and Random Walk and overlays them so you can see the spread of forecasts.',
 };
 function _updateMethodHint(m){
   const el = document.getElementById('pd-method-hint');
@@ -3989,23 +3986,6 @@ async function predRun(){
     predShowResults();return;
   }
 
-  // === Linear Extrapolation method ===
-  if(method==='extrap'){
-    const series=outSer.map(p=>p.v);const years=outSer.map(p=>p.y);
-    const n2=Math.min(10,series.length);const xs=years.slice(-n2),ys=series.slice(-n2);
-    const mx=xs.reduce((a,b)=>a+b,0)/n2,my=ys.reduce((a,b)=>a+b,0)/n2;
-    const bSlope=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/xs.reduce((s,x)=>s+(x-mx)**2,0);
-    const aInt=my-bSlope*mx;
-    const se=Math.sqrt(ys.reduce((s,y,i)=>s+(y-aInt-bSlope*xs[i])**2,0)/Math.max(1,n2-2));
-    const lastYr=years[years.length-1];
-    const fcYears=Array.from({length:h},(_,i)=>lastYr+1+i);
-    const fcValues=fcYears.map(yr=>aInt+bSlope*yr);
-    const ci90=fcYears.map(yr=>({lo:aInt+bSlope*yr-1.96*se*Math.sqrt(1+1/n2),hi:aInt+bSlope*yr+1.96*se*Math.sqrt(1+1/n2)}));
-    const fitted=years.map(yr=>aInt+bSlope*yr);
-    predDrawChart(area,{histYears:years,histActual:series,histFitted:fitted,fcYears,fcValues,ci90,outLabel:outItem.ind,outIso3:outItem.iso3,n:years.length,nPred:0,methodLabel:'Linear Extrapolation'});
-    predShowResults();return;
-  }
-
   // === Ensemble (Total View): run all methods, merge into gradient ===
   if(method==='ensemble'){
     const results=[];
@@ -4025,17 +4005,7 @@ async function predRun(){
     const fcVals2=Array.from({length:h},(_,i)=>last2+drift2*(i+1));
     const ci2=fcVals2.map((_,i)=>({lo:last2+drift2*(i+1)-1.645*Math.sqrt(dVar2*(i+1)),hi:last2+drift2*(i+1)+1.645*Math.sqrt(dVar2*(i+1))}));
     results.push({method:'Random Walk',fcValues:fcVals2,ci:ci2,color:'#f0a030'});}
-    // [3] Linear Extrapolation
-    {const series3=outSer.map(p=>p.v);const years3=outSer.map(p=>p.y);
-    const n3=Math.min(10,series3.length);const xs3=years3.slice(-n3),ys3=series3.slice(-n3);
-    const mx3=xs3.reduce((a,b)=>a+b,0)/n3,my3=ys3.reduce((a,b)=>a+b,0)/n3;
-    const bSlope3=xs3.reduce((s,x,i)=>s+(x-mx3)*(ys3[i]-my3),0)/xs3.reduce((s,x)=>s+(x-mx3)**2,0);
-    const aInt3=my3-bSlope3*mx3;const se3=Math.sqrt(ys3.reduce((s,y,i)=>s+(y-aInt3-bSlope3*xs3[i])**2,0)/Math.max(1,n3-2));
-    const lastYr3=years3[years3.length-1];
-    const fcVals3=Array.from({length:h},(_,i)=>aInt3+bSlope3*(lastYr3+1+i));
-    const ci3=fcVals3.map(yr=>({lo:yr-1.96*se3*Math.sqrt(1+1/n3),hi:yr+1.96*se3*Math.sqrt(1+1/n3)}));
-    results.push({method:'Extrapolation',fcValues:fcVals3,ci:ci3,color:'#c8f060'});}
-    // [4] Ridge - if inputs available
+    // [3] Ridge - if inputs available
     if(inps.length>0||mids.length>0){
       const allSer2=[outSer,...inps.map(x=>x.ser),...mids.map(x=>x.ser)];
       const commonYrs2=_commonYrs(allSer2);
